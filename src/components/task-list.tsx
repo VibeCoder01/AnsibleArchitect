@@ -160,14 +160,14 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
                         {task.rawYAML}
                     </pre>
                  </CardContent>
-              ) : (Object.keys(task.parameters).length > 0 || task.comment) && (
+              ) : (Object.keys(task.parameters || {}).length > 0 || task.comment) && (
                 <CardContent className="px-3 pb-2 pt-0 text-xs">
                   {task.comment && <p className="italic text-muted-foreground mb-1"># {task.comment}</p>}
-                  {Object.keys(task.parameters).length > 0 && (
+                  {Object.keys(task.parameters || {}).length > 0 && (
                     <details className="max-h-32 overflow-y-auto">
                       <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-xs">Parameters</summary>
                       <ul className="text-xs space-y-0.5 mt-1 pl-2 border-l ml-1">
-                        {Object.entries(task.parameters).map(([key, value]) => (
+                        {Object.entries(task.parameters || {}).map(([key, value]) => (
                           <li key={key} className="truncate"><span className="font-medium">{key}:</span> {String(value)}</li>
                         ))}
                       </ul>
@@ -247,5 +247,7 @@ function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+
+    
 
     
