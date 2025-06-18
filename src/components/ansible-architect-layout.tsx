@@ -16,22 +16,13 @@ import { Separator } from "@/components/ui/separator";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { TerminalSquare, Package, Cog, Copy, FileText, FileJson2, UserCog, GitFork, Shell, CalendarClock } from "lucide-react";
+import { defaultModules } from "@/config/ansible-modules"; // Import the full list
 
+// Define which modules appear in the collapsed view by their ID
+const collapsedModuleIds: string[] = ['debug', 'apt', 'service', 'copy', 'file', 'user', 'command', 'git'];
 
-// Re-define defaultModules here for collapsed view, or import if moved to a shared location
-const defaultModulesForCollapsedView: Pick<AnsibleModuleDefinition, 'id' | 'name' | 'icon'>[] = [
-  { id: 'debug', name: 'Debug Message', icon: TerminalSquare },
-  { id: 'apt', name: 'APT Package', icon: Package },
-  { id: 'service', name: 'Manage Service', icon: Cog },
-  { id: 'copy', name: 'Copy File', icon: Copy },
-  { id: 'file', name: 'Manage File/Directory', icon: FileText },
-  { id: 'template', name: 'Template File', icon: FileJson2 },
-  { id: 'user', name: 'User Management', icon: UserCog },
-  { id: 'git', name: 'Git Repository', icon: GitFork },
-  { id: 'command', name: 'Execute Command', icon: Shell },
-  { id: 'cron', name: 'Cron Job', icon: CalendarClock },
-];
+// Filter the full modules list to get the ones for the collapsed view
+const defaultModulesForCollapsedView: AnsibleModuleDefinition[] = defaultModules.filter(mod => collapsedModuleIds.includes(mod.id));
 
 
 export function AnsibleArchitectLayout() {
@@ -51,12 +42,12 @@ export function AnsibleArchitectLayout() {
         className="border-r shadow-lg w-[280px] group-data-[collapsible=icon]:w-[56px] transition-all duration-200 ease-in-out flex flex-col"
         side="left"
       >
-        <SidebarHeader className="p-3 flex items-center space-x-2.5 flex-shrink-0">
-          <AnsibleArchitectIcon className="w-7 h-7 text-primary group-data-[collapsible=icon]:mx-auto" />
-          <h1 className="text-xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">Ansible Architect</h1>
-          <div className="ml-auto group-data-[collapsible=icon]:hidden">
-            <SidebarTrigger />
+        <SidebarHeader className="p-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-2.5">
+            <AnsibleArchitectIcon className="w-7 h-7 text-primary" />
+            <h1 className="text-xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">Ansible Architect</h1>
           </div>
+          <SidebarTrigger />
         </SidebarHeader>
         <Separator className="group-data-[collapsible=icon]:hidden flex-shrink-0" />
         <SidebarContent className="p-0 group-data-[collapsible=icon]:p-0 overflow-hidden flex-grow">
@@ -65,7 +56,7 @@ export function AnsibleArchitectLayout() {
           </div>
            <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center space-y-1 p-1 mt-2">
             {defaultModulesForCollapsedView.map(mod => {
-              const Icon = mod.icon || TerminalSquare; // Fallback if icon is not defined
+              const Icon = mod.icon; // Icon must be defined in defaultModules
               return (
                 <Tooltip key={mod.id}>
                   <TooltipTrigger asChild>
@@ -73,10 +64,10 @@ export function AnsibleArchitectLayout() {
                       variant="ghost" 
                       size="icon" 
                       className="w-10 h-10 hover:bg-sidebar-accent"
-                      onClick={() => handleAddTaskFromPalette(mod as AnsibleModuleDefinition)} // Quick add, needs full def
+                      onClick={() => handleAddTaskFromPalette(mod)} 
                       aria-label={`Add ${mod.name}`}
                     >
-                      <Icon className="w-5 h-5 text-sidebar-foreground hover:text-sidebar-accent-foreground" />
+                      {Icon ? <Icon className="w-5 h-5 text-sidebar-foreground hover:text-sidebar-accent-foreground" /> : <span className="text-xs">MOD</span>}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="font-sans">
@@ -99,4 +90,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
