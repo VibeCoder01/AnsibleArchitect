@@ -142,21 +142,18 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         </div>
       </div>
 
-      <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 m-0">
-        <div className="grid grid-cols-1 lg:grid-cols-1 gap-3 h-full"> {/* Changed lg:grid-cols-3 to lg:grid-cols-1 */}
+      <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 m-0 flex flex-col">
           <div 
             ref={dropZoneRef}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`h-full p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+            className={`flex-grow p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
             aria-dropeffect="copy"
           >
             <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-            {/* TaskList is now a direct child and its ScrollArea has flex-grow and h-full */}
             <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
           </div>
-        </div>
       </TabsContent>
 
       <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 relative">

@@ -16,12 +16,9 @@ import { Separator } from "@/components/ui/separator";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { defaultModules } from "@/config/ansible-modules"; // Import the full list
+import { defaultModules } from "@/config/ansible-modules"; 
 
-// Define which modules appear in the collapsed view by their ID
 const collapsedModuleIds: string[] = ['debug', 'apt', 'service', 'copy', 'file', 'user', 'command', 'git'];
-
-// Filter the full modules list to get the ones for the collapsed view
 const defaultModulesForCollapsedView: AnsibleModuleDefinition[] = defaultModules.filter(mod => collapsedModuleIds.includes(mod.id));
 
 
@@ -56,7 +53,7 @@ export function AnsibleArchitectLayout() {
           </div>
            <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center space-y-1 p-1 mt-2">
             {defaultModulesForCollapsedView.map(mod => {
-              const Icon = mod.icon; // Icon must be defined in defaultModules
+              const Icon = mod.icon; 
               return (
                 <Tooltip key={mod.id}>
                   <TooltipTrigger asChild>
@@ -84,7 +81,7 @@ export function AnsibleArchitectLayout() {
         </SidebarFooter>
       </Sidebar>
       
-      <SidebarInset className="flex-1 overflow-auto">
+      <SidebarInset className="flex-1 overflow-auto ml-2"> {/* Added ml-2 for spacing */}
         <PlaybookEditor ref={playbookEditorRef} />
       </SidebarInset>
     </div>
