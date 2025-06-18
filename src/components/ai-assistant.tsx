@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -7,15 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, PlusCircle, Loader2 } from "lucide-react";
+import { Wand2, PlusCircle, Loader2, X } from "lucide-react";
 import type { AnsibleTask } from "@/types/ansible";
 
 interface AiAssistantProps {
   onTaskSuggested: (task: AnsibleTask) => void;
-  currentPlaybookContext: string; 
+  currentPlaybookContext: string;
+  onClose?: () => void; // New prop to handle closing the assistant
 }
 
-export function AiAssistant({ onTaskSuggested, currentPlaybookContext }: AiAssistantProps) {
+export function AiAssistant({ onTaskSuggested, currentPlaybookContext, onClose }: AiAssistantProps) {
   const [description, setDescription] = React.useState("");
   const [suggestedTaskYaml, setSuggestedTaskYaml] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -61,12 +63,19 @@ export function AiAssistant({ onTaskSuggested, currentPlaybookContext }: AiAssis
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center font-headline text-lg">
-          <Wand2 className="w-5 h-5 mr-2 text-accent" />
-          AI Assistant
-        </CardTitle>
-        <CardDescription className="text-xs">Describe a task, and AI will suggest the Ansible YAML.</CardDescription>
+      <CardHeader className="pb-4 flex flex-row items-start justify-between">
+        <div>
+          <CardTitle className="flex items-center font-headline text-lg">
+            <Wand2 className="w-5 h-5 mr-2 text-accent" />
+            AI Assistant
+          </CardTitle>
+          <CardDescription className="text-xs">Describe a task, and AI will suggest the Ansible YAML.</CardDescription>
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} className="w-7 h-7 -mt-1 -mr-1 flex-shrink-0" aria-label="Close AI Assistant">
+            <X className="w-4 h-4" />
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-3 flex-grow flex flex-col">
         <div className="flex-grow">

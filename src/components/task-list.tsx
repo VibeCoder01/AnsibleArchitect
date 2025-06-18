@@ -11,7 +11,7 @@ import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-// Textarea is removed as it's no longer used for parameters editing
+
 
 interface TaskListProps {
   tasks: AnsibleTask[];
@@ -100,7 +100,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       const newParams = editableParameters.reduce((acc, p) => {
         const trimmedKey = p.key.trim();
         if (trimmedKey) {
-          acc[trimmedKey] = p.value; // Values are kept as strings
+          acc[trimmedKey] = p.value; 
         }
         return acc;
       }, {} as Record<string, any>);
@@ -109,76 +109,74 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
     }
   };
 
-  if (tasks.length === 0) {
-    return (
-      <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center">
-        <PuzzleIconInternal className="w-12 h-12 mx-auto mb-3 opacity-60" />
-        <p className="font-medium text-sm">Your playbook is empty.</p>
-        <p className="text-xs">Drag modules here or use the AI Assistant.</p>
-      </div>
-    );
-  }
-
   return (
-    <ScrollArea className="h-full p-0.5">
-      <div className="space-y-2">
-        {tasks.map((task, index) => {
-          const IconComponent = moduleIcons[task.module] || moduleIcons.default;
-          return (
-            <Card 
-              key={task.id} 
-              className="bg-card shadow-sm hover:shadow-md transition-shadow group relative"
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragEnter={() => handleDragEnter(index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              <div className="flex items-center p-3">
-                <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none" aria-label="Drag to reorder task">
-                  <GripVertical className="w-4 h-4 text-muted-foreground" />
-                </Button>
-                <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
-                <div className="flex-grow">
-                  <CardTitle className="text-sm font-medium text-card-foreground leading-tight">{task.name}</CardTitle>
-                  <CardDescription className="text-xs">Module: {task.module}</CardDescription>
-                </div>
-                <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {!task.rawYAML && (
-                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
-                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+    <ScrollArea className="h-full p-0.5 flex-grow">
+      {tasks.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
+          <PuzzleIconInternal className="w-12 h-12 mx-auto mb-3 opacity-60" />
+          <p className="font-medium text-sm">Your playbook is empty.</p>
+          <p className="text-xs">Drag modules here or use the AI Assistant.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map((task, index) => {
+            const IconComponent = moduleIcons[task.module] || moduleIcons.default;
+            return (
+              <Card 
+                key={task.id} 
+                className="bg-card shadow-sm hover:shadow-md transition-shadow group relative"
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragEnter={() => handleDragEnter(index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+              >
+                <div className="flex items-center p-3">
+                  <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none" aria-label="Drag to reorder task">
+                    <GripVertical className="w-4 h-4 text-muted-foreground" />
                   </Button>
+                  <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
+                  <div className="flex-grow">
+                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight">{task.name}</CardTitle>
+                    <CardDescription className="text-xs">Module: {task.module}</CardDescription>
+                  </div>
+                  <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!task.rawYAML && (
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              {task.rawYAML ? (
-                 <CardContent className="px-3 pb-2 pt-0">
-                    <pre className="font-code bg-muted/20 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
-                        {task.rawYAML}
-                    </pre>
-                 </CardContent>
-              ) : (Object.keys(task.parameters || {}).length > 0 || task.comment) && (
-                <CardContent className="px-3 pb-2 pt-0 text-xs">
-                  {task.comment && <p className="italic text-muted-foreground mb-1"># {task.comment}</p>}
-                  {Object.keys(task.parameters || {}).length > 0 && (
-                    <details className="max-h-32 overflow-y-auto">
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-xs">Parameters</summary>
-                      <ul className="text-xs space-y-0.5 mt-1 pl-2 border-l ml-1">
-                        {Object.entries(task.parameters || {}).map(([key, value]) => (
-                          <li key={key} className="truncate"><span className="font-medium">{key}:</span> {String(value)}</li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
-      </div>
+                {task.rawYAML ? (
+                   <CardContent className="px-3 pb-2 pt-0">
+                      <pre className="font-code bg-muted/20 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
+                          {task.rawYAML}
+                      </pre>
+                   </CardContent>
+                ) : (Object.keys(task.parameters || {}).length > 0 || task.comment) && (
+                  <CardContent className="px-3 pb-2 pt-0 text-xs">
+                    {task.comment && <p className="italic text-muted-foreground mb-1"># {task.comment}</p>}
+                    {Object.keys(task.parameters || {}).length > 0 && (
+                      <details className="max-h-32 overflow-y-auto">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-xs">Parameters</summary>
+                        <ul className="text-xs space-y-0.5 mt-1 pl-2 border-l ml-1">
+                          {Object.entries(task.parameters || {}).map(([key, value]) => (
+                            <li key={key} className="truncate"><span className="font-medium">{key}:</span> {String(value)}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
       {editingTask && (
         <Dialog open={!!editingTask} onOpenChange={(isOpen) => !isOpen && setEditingTask(null)}>
           <DialogContent className="sm:max-w-[600px]">
@@ -246,8 +244,3 @@ function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-
-
-    
-
-    

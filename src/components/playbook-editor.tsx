@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -8,7 +9,9 @@ import { AiAssistant } from "@/components/ai-assistant";
 import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, GalleryVerticalEnd, FileCode } from "lucide-react";
+import { Download, ClipboardCheck, GalleryVerticalEnd, FileCode, Wand2, X } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
 
 export interface PlaybookEditorRef {
   addTaskFromPalette: (moduleDef: AnsibleModuleDefinition) => void;
@@ -19,6 +22,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   const { toast } = useToast();
   const dropZoneRef = React.useRef<HTMLDivElement>(null);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+  const [isAiAssistantVisible, setIsAiAssistantVisible] = React.useState(false);
 
   const addTask = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     let newTask: AnsibleTask;
@@ -28,11 +32,11 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         id: crypto.randomUUID(),
         name: `New ${moduleDef.name} Task`,
         module: moduleDef.module,
-        parameters: JSON.parse(JSON.stringify(moduleDef.defaultParameters || {})), // Deep copy
+        parameters: JSON.parse(JSON.stringify(moduleDef.defaultParameters || {})), 
       };
     } else { 
       newTask = taskDetails as AnsibleTask;
-      if (!newTask.id) newTask.id = crypto.randomUUID(); // Ensure ID for AI tasks
+      if (!newTask.id) newTask.id = crypto.randomUUID(); 
     }
     setTasks((prevTasks) => [...prevTasks, newTask]);
     toast({ title: "Task Added", description: `"${newTask.name}" added to playbook.` });
@@ -43,6 +47,12 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
       addTask(moduleDef);
     }
   }));
+
+  const handleAiTaskSuggested = (task: AnsibleTask) => {
+    addTask(task);
+    // Optional: Close AI assistant after task is added
+    // setIsAiAssistantVisible(false);
+  };
 
   const updateTask = (updatedTask: AnsibleTask) => {
     setTasks((prevTasks) =>
@@ -79,7 +89,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(link.href); // Clean up
+    URL.revokeObjectURL(link.href); 
     toast({ title: "Exported", description: "Playbook YAML downloaded." });
   };
 
@@ -127,7 +137,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
 
   return (
     <Tabs defaultValue="design" className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-between p-3 border-b bg-card shadow-sm">
+      <div className="flex items-center justify-between p-3 border-b bg-card shadow-sm flex-shrink-0">
         <TabsList className="bg-muted/70">
           <TabsTrigger value="design" className="text-xs px-3 py-1.5 flex items-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <GalleryVerticalEnd className="w-3.5 h-3.5 mr-1.5" /> Design
@@ -148,8 +158,29 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
 
       <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 m-0">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 h-full">
-          <div className="lg:col-span-1 h-full min-h-[250px]">
-            <AiAssistant onTaskSuggested={addTask} currentPlaybookContext={currentPlaybookContext} />
+          <div className="lg:col-span-1 h-full min-h-[250px] flex flex-col">
+            {isAiAssistantVisible ? (
+              <AiAssistant
+                onTaskSuggested={handleAiTaskSuggested}
+                currentPlaybookContext={currentPlaybookContext}
+                onClose={() => setIsAiAssistantVisible(false)}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full p-4 md:p-6 border bg-card rounded-lg shadow-lg text-center">
+                <Wand2 className="w-10 h-10 text-accent mb-3" />
+                <h3 className="text-md font-semibold mb-1 font-headline">Need a Task Idea?</h3>
+                <p className="text-xs text-muted-foreground mb-3 max-w-xs mx-auto">
+                  Let the AI suggest an Ansible task based on your description.
+                </p>
+                <Button 
+                  onClick={() => setIsAiAssistantVisible(true)} 
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground text-sm py-2"
+                >
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Open AI Assistant
+                </Button>
+              </div>
+            )}
           </div>
           <div 
             ref={dropZoneRef}
@@ -159,8 +190,10 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
             className={`lg:col-span-2 h-full p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
             aria-dropeffect="copy"
           >
-            <h2 className="text-base font-semibold mb-2 text-foreground font-headline">Playbook Tasks</h2>
-            <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+            <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+            <div className="flex-grow overflow-hidden">
+              <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+            </div>
           </div>
         </div>
       </TabsContent>

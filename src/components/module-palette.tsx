@@ -21,10 +21,10 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
 
   return (
     <Card className="h-full flex flex-col shadow-md border-0 rounded-none">
-      <CardHeader className="p-3 border-b">
+      <CardHeader className="p-3 border-b flex-shrink-0">
         <CardTitle className="text-base font-headline">Available Modules</CardTitle>
       </CardHeader>
-      <CardContent className="p-0 flex-grow">
+      <CardContent className="p-0 flex-grow overflow-hidden">
         <ScrollArea className="h-full p-3">
           <div className="space-y-2">
             {defaultModules.map((module) => {
@@ -63,7 +63,8 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
   );
 }
 
-function PuzzleIcon(props: React.SVGProps<SVGSVGElement>) { // Fallback Icon for ModulePalette
+// Fallback Icon for ModulePalette - kept local as it's specific here
+function PuzzleIcon(props: React.SVGProps<SVGSVGElement>) { 
   return (
     <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24" {...props}>
       <path d="M19.439 7.561c-1.172-1.172-2.756-1.81-4.439-1.81s-3.267.638-4.439 1.81L7.56 10.561M16.561 19.439c1.172-1.172 1.81-2.756 1.81-4.439s-.638-3.267-1.81-4.439L10.56 7.561M4.561 16.561A6.25 6.25 0 0010.05 19.5a6.25 6.25 0 005.488-8.488M19.5 10.05a6.25 6.25 0 00-8.488-5.488"/>
