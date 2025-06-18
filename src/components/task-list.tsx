@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,12 +6,12 @@ import type { AnsibleTask } from "@/types/ansible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, Wand2 } from "lucide-react";
+import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, Wand2, PlusCircle, X } from "lucide-react";
 import { Input } from "./ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "./ui/dialog";
-import { Label } from "./ui/label";
-import { Separator } from "./ui/separator";
-import { Textarea } from "./ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+// Textarea is removed as it's no longer used for parameters editing
 
 interface TaskListProps {
   tasks: AnsibleTask[];
@@ -27,14 +28,19 @@ const moduleIcons: Record<string, React.ElementType> = {
   file: FileText,
   template: FileJson2,
   ai_suggested: Wand2,
-  default: PuzzleIconInternal, // Using internal fallback
+  default: PuzzleIconInternal,
 };
+
+interface EditableParameter {
+  id: string;
+  key: string;
+  value: string;
+}
 
 export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
-  const [tempParameters, setTempParameters] = React.useState<string>(""); // Store params as JSON string
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
-  const [isParamsJsonValid, setIsParamsJsonValid] = React.useState(true);
+  const [editableParameters, setEditableParameters] = React.useState<EditableParameter[]>([]);
 
   const dragItem = React.useRef<number | null>(null);
   const dragOverItem = React.useRef<number | null>(null);
@@ -58,30 +64,43 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
   const openEditModal = (task: AnsibleTask) => {
     setEditingTask(task);
     setTempTaskName(task.name);
-    setTempParameters(JSON.stringify(task.parameters, null, 2));
-    setIsParamsJsonValid(true);
+    setEditableParameters(
+      Object.entries(task.parameters || {}).map(([k, v]) => ({
+        id: crypto.randomUUID(),
+        key: k,
+        value: String(v ?? ''), 
+      }))
+    );
   };
 
-  const handleParameterJsonChange = (value: string) => {
-    setTempParameters(value);
-    try {
-      JSON.parse(value);
-      setIsParamsJsonValid(true);
-    } catch (e) {
-      setIsParamsJsonValid(false);
-    }
+  const handleParameterPropertyChange = (id: string, field: 'key' | 'value', newValue: string) => {
+    setEditableParameters(prev =>
+      prev.map(p => (p.id === id ? { ...p, [field]: newValue } : p))
+    );
+  };
+
+  const handleAddParameter = () => {
+    setEditableParameters(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), key: '', value: '' },
+    ]);
+  };
+
+  const handleRemoveParameter = (id: string) => {
+    setEditableParameters(prev => prev.filter(p => p.id !== id));
   };
   
   const handleSaveTask = () => {
-    if (editingTask && isParamsJsonValid) {
-      try {
-        const parsedParameters = JSON.parse(tempParameters);
-        onUpdateTask({ ...editingTask, name: tempTaskName, parameters: parsedParameters });
-        setEditingTask(null);
-      } catch (e) {
-         // This should ideally not happen if isParamsJsonValid is true, but as a safeguard
-        console.error("Error parsing parameters JSON on save:", e);
-      }
+    if (editingTask) {
+      const newParams = editableParameters.reduce((acc, p) => {
+        const trimmedKey = p.key.trim();
+        if (trimmedKey) {
+          acc[trimmedKey] = p.value; // Values are kept as strings
+        }
+        return acc;
+      }, {} as Record<string, any>);
+      onUpdateTask({ ...editingTask, name: tempTaskName, parameters: newParams });
+      setEditingTask(null);
     }
   };
 
@@ -173,22 +192,40 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
               </div>
               <Separator />
               <div>
-                <Label htmlFor="taskParamsEdit" className="font-medium">Parameters (JSON)</Label>
-                <Textarea
-                  id="taskParamsEdit"
-                  value={tempParameters}
-                  onChange={(e) => handleParameterJsonChange(e.target.value)}
-                  className={`mt-1 font-code text-xs min-h-[150px] ${!isParamsJsonValid ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-                  placeholder='{ "key": "value", "another_key": true }'
-                />
-                {!isParamsJsonValid && <p className="text-xs text-destructive mt-1">Invalid JSON format.</p>}
+                <Label className="font-medium block mb-1">Parameters</Label>
+                <div className="space-y-2">
+                  {editableParameters.map((param) => (
+                    <div key={param.id} className="flex items-center space-x-2">
+                      <Input
+                        aria-label="Parameter key"
+                        placeholder="Key"
+                        value={param.key}
+                        onChange={(e) => handleParameterPropertyChange(param.id, 'key', e.target.value)}
+                        className="flex-1 text-sm"
+                      />
+                      <Input
+                        aria-label="Parameter value"
+                        placeholder="Value"
+                        value={param.value}
+                        onChange={(e) => handleParameterPropertyChange(param.id, 'value', e.target.value)}
+                        className="flex-1 text-sm"
+                      />
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleRemoveParameter(param.id)} aria-label="Remove parameter">
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleAddParameter} className="mt-3 text-xs px-2 py-1">
+                  <PlusCircle className="w-3.5 h-3.5 mr-1.5" /> Add Parameter
+                </Button>
               </div>
             </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button onClick={handleSaveTask} disabled={!isParamsJsonValid}>Save Changes</Button>
+              <Button onClick={handleSaveTask}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -197,10 +234,13 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
   );
 }
 
-function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) { // Internal fallback icon
+function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) { 
   return (
     <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24" {...props}>
       <path d="M19.439 7.561c-1.172-1.172-2.756-1.81-4.439-1.81s-3.267.638-4.439 1.81L7.56 10.561M16.561 19.439c1.172-1.172 1.81-2.756 1.81-4.439s-.638-3.267-1.81-4.439L10.56 7.561M4.561 16.561A6.25 6.25 0 0010.05 19.5a6.25 6.25 0 005.488-8.488M19.5 10.05a6.25 6.25 0 00-8.488-5.488"/>
     </svg>
   )
 }
+
+
+    
