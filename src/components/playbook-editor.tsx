@@ -142,7 +142,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         </div>
       </div>
 
-      <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 m-0 flex flex-col">
+      <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 pl-4 md:pl-6 m-0 flex flex-col">
           <div 
             ref={dropZoneRef}
             onDrop={handleDrop}
