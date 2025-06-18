@@ -123,7 +123,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   
   return (
     <Tabs defaultValue="design" className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-between p-3 border-b bg-card shadow-sm flex-shrink-0">
+      <div className="flex items-center justify-between p-3 pl-4 md:pl-6 border-b bg-card shadow-sm flex-shrink-0">
         <TabsList className="bg-muted/70">
           <TabsTrigger value="design" className="text-xs px-3 py-1.5 flex items-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <GalleryVerticalEnd className="w-3.5 h-3.5 mr-1.5" /> Design
@@ -156,10 +156,8 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
           </div>
       </TabsContent>
 
-      <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 relative">
-         <div className="absolute inset-0 p-2 md:p-3">
-            <YamlDisplay tasks={tasks} />
-         </div>
+      <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 p-2 md:p-3 flex flex-col">
+         <YamlDisplay tasks={tasks} />
       </TabsContent>
     </Tabs>
   );
