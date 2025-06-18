@@ -6,7 +6,7 @@ import type { AnsibleTask } from "@/types/ansible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, Wand2, PlusCircle, X } from "lucide-react";
+import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, Wand2, PlusCircle, X, UserCog, ListTree, Shell, GitFork, CalendarClock } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,11 @@ const moduleIcons: Record<string, React.ElementType> = {
   copy: Copy,
   file: FileText,
   template: FileJson2,
+  user: UserCog,
+  package_facts: ListTree,
+  command: Shell,
+  git: GitFork,
+  cron: CalendarClock,
   ai_suggested: Wand2,
   default: PuzzleIconInternal,
 };

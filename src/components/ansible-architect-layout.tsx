@@ -1,3 +1,4 @@
+
 "use client";
 import * as React from "react";
 import {
@@ -15,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { TerminalSquare, Package, Cog, Copy, FileText, FileJson2 } from "lucide-react";
+import { TerminalSquare, Package, Cog, Copy, FileText, FileJson2, UserCog, GitFork, Shell, CalendarClock } from "lucide-react";
 
 
 // Re-define defaultModules here for collapsed view, or import if moved to a shared location
@@ -26,6 +27,10 @@ const defaultModulesForCollapsedView: Pick<AnsibleModuleDefinition, 'id' | 'name
   { id: 'copy', name: 'Copy File', icon: Copy },
   { id: 'file', name: 'Manage File/Directory', icon: FileText },
   { id: 'template', name: 'Template File', icon: FileJson2 },
+  { id: 'user', name: 'User Management', icon: UserCog },
+  { id: 'git', name: 'Git Repository', icon: GitFork },
+  { id: 'command', name: 'Execute Command', icon: Shell },
+  { id: 'cron', name: 'Cron Job', icon: CalendarClock },
 ];
 
 
@@ -94,3 +99,4 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
