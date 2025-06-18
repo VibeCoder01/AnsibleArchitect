@@ -156,7 +156,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
           </div>
       </TabsContent>
 
-      <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 p-2 md:p-3 flex flex-col">
+      <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 pt-0 pr-2 pb-2 pl-4 md:pt-0 md:pr-3 md:pb-3 md:pl-6 flex flex-col">
          <YamlDisplay tasks={tasks} />
       </TabsContent>
     </Tabs>
