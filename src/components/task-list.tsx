@@ -36,6 +36,7 @@ interface TaskListProps {
   onDeleteTask: (taskId: string) => void;
   onMoveTask: (dragIndex: number, hoverIndex: number) => void;
   definedRoles?: AnsibleRoleRef[]; 
+  onSetHoveredTaskId: (taskId: string | null) => void;
 }
 
 const moduleIcons: Record<string, React.ElementType> = {
@@ -208,7 +209,7 @@ interface EditableParameter {
 
 const MANUAL_ENTRY_VALUE = "_INTERNAL_MANUAL_ROLE_SELECTION_";
 
-export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [] }: TaskListProps) {
+export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [], onSetHoveredTaskId }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
   const [editableParameters, setEditableParameters] = React.useState<EditableParameter[]>([]);
@@ -324,6 +325,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                 onDragEnter={() => handleDragEnter(index)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
+                onMouseEnter={() => onSetHoveredTaskId(task.id)}
+                onMouseLeave={() => onSetHoveredTaskId(null)}
               >
                 <div className="flex items-center p-3">
                   <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none" aria-label="Drag to reorder task">
@@ -475,3 +478,4 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     </ScrollArea>
   );
 }
+

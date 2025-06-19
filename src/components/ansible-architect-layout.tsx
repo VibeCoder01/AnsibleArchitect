@@ -4,10 +4,10 @@ import * as React from "react";
 import { AnsibleArchitectIcon } from "@/components/icons/ansible-architect-icon";
 import { ModulePalette } from "@/components/module-palette";
 import { TaskList } from "@/components/task-list";
-import { YamlDisplay } from "@/components/yaml-display";
+import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy, Settings, Trash2, PlusCircle } from "lucide-react";
+import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook, AnsibleRoleRef } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -16,10 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
 
-function generatePlaybookYaml(tasks: AnsibleTask[]): string {
+function generatePlaybookYamlSegments(tasks: AnsibleTask[]): YamlSegment[] {
+  const segments: YamlSegment[] = [];
   const playbook: AnsiblePlaybook = [
     {
       id: "play1",
@@ -30,34 +30,36 @@ function generatePlaybookYaml(tasks: AnsibleTask[]): string {
     },
   ];
 
-  let yamlString = "";
   playbook.forEach(play => {
-    yamlString += `- name: ${play.name}\n`;
-    yamlString += `  hosts: ${play.hosts}\n`;
+    let playHeaderContent = `- name: ${play.name}\n`;
+    playHeaderContent += `  hosts: ${play.hosts}\n`;
     if (play.become !== undefined) {
-      yamlString += `  become: ${play.become ? 'yes' : 'no'}\n`;
+      playHeaderContent += `  become: ${play.become ? 'yes' : 'no'}\n`;
     }
+    segments.push({ content: playHeaderContent, isTaskBlock: false });
+
     if (play.tasks.length > 0) {
-      yamlString += `  tasks:\n`;
+      segments.push({ content: `  tasks:\n`, isTaskBlock: false });
       play.tasks.forEach(task => {
+        let taskBlockContent = "";
         if (task.rawYAML) {
           const lines = task.rawYAML.trim().split('\n');
           lines.forEach((line, index) => {
-            if (index === 0 && !line.trim().startsWith('-')) {
-               yamlString += `    - ${line.trim()}\n`;
-            } else if (index === 0 && line.trim().startsWith('-')) {
-               yamlString += `    ${line.trim()}\n`;
-            }
-            else {
-               yamlString += `      ${line.trim()}\n`;
+            const trimmedLine = line.trim();
+            if (index === 0 && !trimmedLine.startsWith('-')) {
+               taskBlockContent += `    - ${trimmedLine}\n`;
+            } else if (index === 0 && trimmedLine.startsWith('-')) {
+               taskBlockContent += `    ${trimmedLine}\n`;
+            } else {
+               taskBlockContent += `      ${trimmedLine}\n`;
             }
           });
         } else {
-          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`;
+          taskBlockContent += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`;
           if (task.comment) {
-            yamlString += `      # ${task.comment}\n`;
+            taskBlockContent += `      # ${task.comment}\n`;
           }
-          yamlString += `      ${task.module}:\n`;
+          taskBlockContent += `      ${task.module}:\n`;
           Object.entries(task.parameters || {}).forEach(([key, value]) => {
             let formattedValue = value;
             if (typeof value === 'string') {
@@ -71,16 +73,18 @@ function generatePlaybookYaml(tasks: AnsibleTask[]): string {
             } else if (value === null || value === undefined) {
               formattedValue = 'null';
             }
-            yamlString += `        ${key}: ${formattedValue}\n`;
+            taskBlockContent += `        ${key}: ${formattedValue}\n`;
           });
         }
-        yamlString += "\n";
+        // Ensure each task block ends with a newline, and add an extra for spacing if it's not the last task.
+        taskBlockContent += "\n"; 
+        segments.push({ id: task.id, content: taskBlockContent, isTaskBlock: true });
       });
     } else {
-      yamlString += "  tasks: []\n\n";
+      segments.push({ content: "  tasks: []\n\n", isTaskBlock: false });
     }
   });
-  return yamlString.trim();
+  return segments;
 }
 
 
@@ -101,7 +105,11 @@ export function AnsibleArchitectLayout() {
   const [isManageRolesModalOpen, setIsManageRolesModalOpen] = React.useState(false);
   const [newRoleName, setNewRoleName] = React.useState("");
 
-  const yamlContent = React.useMemo(() => generatePlaybookYaml(tasks), [tasks]);
+  const [hoveredTaskId, setHoveredTaskId] = React.useState<string | null>(null);
+
+  const yamlSegments = React.useMemo(() => generatePlaybookYamlSegments(tasks), [tasks]);
+  const fullYamlContent = React.useMemo(() => yamlSegments.map(segment => segment.content).join(''), [yamlSegments]);
+
 
   const addTask = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     let newTask: AnsibleTask;
@@ -144,11 +152,11 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleExportYaml = () => {
-    if (!yamlContent) {
+    if (!fullYamlContent) {
       toast({ title: "Error", description: "No YAML content to export.", variant: "destructive" });
       return;
     }
-    const blob = new Blob([yamlContent], { type: "text/yaml;charset=utf-8" });
+    const blob = new Blob([fullYamlContent], { type: "text/yaml;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "playbook.yml";
@@ -160,12 +168,12 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleCopyYaml = async () => {
-    if (!yamlContent || yamlContent.trim() === "" || yamlContent.trim() === "# Add tasks to see YAML output here") {
+    if (!fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") {
       toast({ title: "Nothing to Copy", description: "Generated YAML is empty.", variant: "default" });
       return;
     }
     try {
-      await navigator.clipboard.writeText(yamlContent);
+      await navigator.clipboard.writeText(fullYamlContent);
       toast({ title: "Copied", description: "YAML copied to clipboard." });
     } catch (err) {
       console.error("Failed to copy YAML: ", err);
@@ -184,7 +192,7 @@ export function AnsibleArchitectLayout() {
     }
 
     try {
-      yaml.load(yamlContent);
+      yaml.load(fullYamlContent);
       toast({
         title: "Validation Successful",
         description: "YAML syntax is valid.",
@@ -334,6 +342,7 @@ export function AnsibleArchitectLayout() {
               onDeleteTask={deleteTask}
               onMoveTask={moveTask}
               definedRoles={definedRoles}
+              onSetHoveredTaskId={setHoveredTaskId}
             />
           </div>
         </div>
@@ -347,7 +356,7 @@ export function AnsibleArchitectLayout() {
         >
           <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML</h2>
           <div className="flex-grow overflow-hidden">
-            <YamlDisplay yamlContent={yamlContent} />
+            <YamlDisplay yamlSegments={yamlSegments} hoveredTaskId={hoveredTaskId} />
           </div>
         </div>
       </div>
@@ -437,3 +446,4 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
