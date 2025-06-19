@@ -14,7 +14,8 @@ import {
   CheckCircle2, Hourglass, Files, Search as SearchIconLucide,
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap,
   TestTube2, MessageSquare, Eye, Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
-  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig
+  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig,
+  FileLock2, Layers3 // Added for HashiCorp
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -168,6 +169,13 @@ const moduleIcons: Record<string, React.ElementType> = {
   'ansible.builtin.include_vars': FileSymlink,
   'ansible.builtin.set_stats': BarChartBig,
   'community.general.wakeonlan': Power,
+  // HashiCorp Modules
+  'community.hashi_vault.vault_kv2_get': KeyRound,
+  'community.hashi_vault.vault_write': FileLock2,
+  'community.general.consul_kv': Database,
+  'community.general.consul_service': ServerCog,
+  'community.general.terraform': Layers3,
+  'community.general.nomad_job': Container,
   // Default/Fallback
   default: Puzzle,
 };
@@ -268,11 +276,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
 
   const isRoleModuleType = editingTask?.module === 'ansible.builtin.include_role' || editingTask?.module === 'ansible.builtin.import_role';
   
-  // This determines the value currently in the 'name' parameter input field
   const currentRoleNameParamValue = editableParameters.find(p => p.key === 'name')?.value || "";
   
-  // This determines what value the Select component should display as selected.
-  // If currentRoleNameParamValue is a defined role, show that. Otherwise, show placeholder (by passing "" to Select value).
   const selectDisplayValue = (isRoleModuleType && definedRoles.some(r => r.name === currentRoleNameParamValue)) 
                              ? currentRoleNameParamValue 
                              : "";

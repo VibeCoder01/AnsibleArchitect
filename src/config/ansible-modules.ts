@@ -7,7 +7,8 @@ import {
   Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle, CheckCircle2, Hourglass, Files, Search,
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap, TestTube2, MessageSquare, Eye,
   Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
-  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig
+  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig,
+  Shapes, FileLock2, Layers3 // Added for HashiCorp
 } from "lucide-react";
 
 const fileManagementModules: AnsibleModuleDefinition[] = [
@@ -160,6 +161,91 @@ const utilityExecutionModules: AnsibleModuleDefinition[] = [
   { id: 'wakeonlan', module: 'community.general.wakeonlan', name: 'Wake-on-LAN', icon: Power, description: 'Sends a Wake-on-LAN (Magic Packet) to a remote host.', defaultParameters: { mac: "00:11:22:AA:BB:CC", broadcast: "192.168.1.255", state: "present" } },
 ];
 
+const hashicorpModules: AnsibleModuleDefinition[] = [
+  { 
+    id: 'vault_kv2_get', 
+    module: 'community.hashi_vault.vault_kv2_get', 
+    name: 'Vault KV v2 Get Secret', 
+    icon: KeyRound, 
+    description: 'Read secrets from HashiCorp Vault KV v2 engine.', 
+    defaultParameters: { 
+      path: "secret/data/myapp/config", 
+      mount_point: "secret", 
+      auth_method: "token", 
+      url: "https://vault.example.com:8200" 
+    } 
+  },
+  { 
+    id: 'vault_write', 
+    module: 'community.hashi_vault.vault_write', 
+    name: 'Vault Write Data', 
+    icon: FileLock2, 
+    description: 'Write data to a path in HashiCorp Vault.', 
+    defaultParameters: { 
+      path: "secret/data/myapp/new_secret", 
+      mount_point: "secret",
+      data: { key1: "value1", key2: "value2" }, 
+      auth_method: "token", 
+      url: "https://vault.example.com:8200" 
+    } 
+  },
+  { 
+    id: 'consul_kv', 
+    module: 'community.general.consul_kv', 
+    name: 'Consul K/V Management', 
+    icon: Database, 
+    description: 'Manage key/value pairs in HashiCorp Consul.', 
+    defaultParameters: { 
+      key: "myapp/config/version", 
+      value: "1.2.3", 
+      state: "present", 
+      host: "consul.example.com", 
+      port: 8500 
+    } 
+  },
+  { 
+    id: 'consul_service', 
+    module: 'community.general.consul_service', 
+    name: 'Consul Service Management', 
+    icon: ServerCog, 
+    description: 'Register or deregister services with HashiCorp Consul.', 
+    defaultParameters: { 
+      name: "my-app-instance-1", 
+      service_id: "my-app-1",
+      port: 8080, 
+      tags: ["web", "production"], 
+      state: "present", 
+      host: "consul.example.com" 
+    } 
+  },
+  { 
+    id: 'terraform', 
+    module: 'community.general.terraform', 
+    name: 'Terraform Execution', 
+    icon: Layers3, 
+    description: 'Run Terraform commands (init, plan, apply, destroy).', 
+    defaultParameters: { 
+      project_path: "/srv/terraform/my-project", 
+      state: "present", 
+      force_init: "yes"
+    } 
+  },
+  { 
+    id: 'nomad_job', 
+    module: 'community.general.nomad_job', 
+    name: 'Nomad Job Management', 
+    icon: Container, 
+    description: 'Manage HashiCorp Nomad jobs.', 
+    defaultParameters: { 
+      path: "/path/to/myjob.nomad.hcl", 
+      state: "present", 
+      host: "nomad.example.com", 
+      port: 4646 
+    } 
+  },
+];
+
+
 export const moduleGroups: AnsibleModuleGroup[] = [
   { 
     name: "File Management", 
@@ -201,5 +287,10 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     icon: SquareCode, 
     modules: utilityExecutionModules 
   },
+  {
+    name: "HashiCorp",
+    icon: Shapes,
+    modules: hashicorpModules
+  }
 ];
 
