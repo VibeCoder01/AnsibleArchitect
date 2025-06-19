@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink } from "lucide-react";
+import { Download, ClipboardCheck, ExternalLink, Info } from "lucide-react";
 import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { moduleGroups } from "@/config/ansible-modules";
@@ -115,7 +115,7 @@ export function AnsibleArchitectLayout() {
 
   const totalModuleCount = React.useMemo(() => {
     return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
-  }, [moduleGroups]); // Corrected dependency array
+  }, [moduleGroups]);
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
@@ -125,7 +125,7 @@ export function AnsibleArchitectLayout() {
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
         </div>
-        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} totalModuleCount={totalModuleCount} />
+        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
       </div>
 
       {/* Column 2: Playbook Tasks */}
@@ -165,6 +165,11 @@ export function AnsibleArchitectLayout() {
             <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
           </a>
         </Button>
+        <Separator className="my-2"/>
+         <div className="flex items-center text-xs text-muted-foreground pt-1">
+          <Info className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+          <span>{totalModuleCount} Modules Available</span>
+        </div>
       </div>
     </div>
   );

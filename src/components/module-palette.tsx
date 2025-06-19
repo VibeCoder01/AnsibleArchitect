@@ -17,10 +17,9 @@ import {
 
 interface ModulePaletteProps {
   onAddTaskFromPalette: (module: AnsibleModuleDefinition) => void;
-  totalModuleCount: number;
 }
 
-export function ModulePalette({ onAddTaskFromPalette, totalModuleCount }: ModulePaletteProps) {
+export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>, module: AnsibleModuleDefinition) => {
@@ -49,7 +48,7 @@ export function ModulePalette({ onAddTaskFromPalette, totalModuleCount }: Module
     ? filteredModuleGroups.map(g => g.name) 
     : []; 
   
-  const searchPlaceholder = `Search ${totalModuleCount} modules...`;
+  const searchPlaceholder = "Search modules...";
 
   return (
     <div className="h-full flex flex-col">
