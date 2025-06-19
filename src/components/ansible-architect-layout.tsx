@@ -481,7 +481,7 @@ export function AnsibleArchitectLayout() {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === "" || line.startsWith("#") || line.startsWith(";")) {
-            continue; // Skip empty lines and comments
+            continue; 
         }
 
         if (line.startsWith("[") && line.endsWith("]")) {
@@ -500,19 +500,19 @@ export function AnsibleArchitectLayout() {
 
         } else if (currentGroup) {
             const hasEquals = line.includes("=");
-            // Variable definition
-            if (hasEquals) {
+            
+            if (hasEquals) { // Variable definition
                 if (!isVarsSection) {
                     errorLine = i + 1;
                     errorMessage = `Variable definition "${line}" found outside a :vars section.`;
                     break;
                 }
-                if (!/^\s*\S+\s*=\s*\S*/.test(line.replace(/\s*#.*$/, ""))) { // Allow spaces around =
+                if (!/^\s*\S+\s*=\s*\S*/.test(line.replace(/\s*#.*$/, ""))) { 
                     errorLine = i + 1;
                     errorMessage = `Malformed variable definition: ${line}`;
                     break;
                 }
-                groups[currentGroup].push(line);
+                groups[currentGroup].push(line); // Store the whole var line
             } 
             // Host or child group definition
             else {
@@ -521,17 +521,20 @@ export function AnsibleArchitectLayout() {
                     errorMessage = `Non-variable line "${line}" found inside a :vars section.`;
                     break;
                 }
-                const hostOrChildGroupName = line.split(/\s+/)[0]; // Take the first part before spaces
+                const hostOrChildGroupName = line.split(/\s+/)[0]; 
                 if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrChildGroupName)) {
                     errorLine = i + 1;
                     errorMessage = `Invalid characters in host/child group name: ${hostOrChildGroupName}`;
                     break;
                 }
                 if (isChildrenSection) {
-                    // Line in a :children section is a child group name
+                    if (line.includes(" ") || line.includes("=")) { // Child group names should not have variables on the same line
+                         errorLine = i + 1;
+                         errorMessage = `Child group definition "${hostOrChildGroupName}" in :children section should not contain variables or spaces.`;
+                         break;
+                    }
                     groups[currentGroup].push(hostOrChildGroupName); 
-                } else {
-                    // Line in a regular group section is a host
+                } else { // Regular group section, so it's a host
                     groups[currentGroup].push(hostOrChildGroupName);
                     hostCount++;
                 }
@@ -591,31 +594,30 @@ export function AnsibleArchitectLayout() {
             }
 
             if (groupData.hosts) {
-                if (typeof groupData.hosts !== 'object' || groupData.hosts === null) {
-                    errors.push(`'hosts' key in group '${path}' must be an object.`);
+                if (typeof groupData.hosts !== 'object' || groupData.hosts === null || Array.isArray(groupData.hosts)) {
+                    errors.push(`'hosts' key in group '${path}' must be an object (dictionary).`);
                 } else {
                     hostCount += Object.keys(groupData.hosts).length;
-                    // Further validation: check if each host's value is an object (for vars)
                     for (const hostName in groupData.hosts) {
-                        if (typeof groupData.hosts[hostName] !== 'object' || groupData.hosts[hostName] === null) {
-                           warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object.`);
+                        if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
+                           warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
                         }
                     }
                 }
             }
 
             if (groupData.vars) {
-                if (typeof groupData.vars !== 'object' || groupData.vars === null) {
-                    errors.push(`'vars' key in group '${path}' must be an object.`);
+                if (typeof groupData.vars !== 'object' || groupData.vars === null || Array.isArray(groupData.vars)) {
+                    errors.push(`'vars' key in group '${path}' must be an object (dictionary).`);
                 }
             }
 
             if (groupData.children) {
-                if (typeof groupData.children !== 'object' || groupData.children === null) {
-                    errors.push(`'children' key in group '${path}' must be an object.`);
+                if (typeof groupData.children !== 'object' || groupData.children === null || Array.isArray(groupData.children)) {
+                    errors.push(`'children' key in group '${path}' must be an object (dictionary).`);
                 } else {
                     for (const childGroupName in groupData.children) {
-                        topLevelGroupCount++; // Counting subgroups as well for a more comprehensive group count
+                        topLevelGroupCount++; 
                         processGroup(childGroupName, groupData.children[childGroupName], `${path}.children.${childGroupName}`);
                     }
                 }
@@ -623,9 +625,15 @@ export function AnsibleArchitectLayout() {
         }
 
         const parsedInventory = inventory as Record<string, any>;
-        for (const groupName in parsedInventory) {
+        if (parsedInventory.all) { // Common top-level group
             topLevelGroupCount++;
-            processGroup(groupName, parsedInventory[groupName], groupName);
+            processGroup("all", parsedInventory.all, "all");
+        }
+        for (const groupName in parsedInventory) {
+            if (groupName !== "all") { // Avoid double processing 'all'
+                topLevelGroupCount++;
+                processGroup(groupName, parsedInventory[groupName], groupName);
+            }
         }
         
         if (errors.length > 0) {
@@ -642,7 +650,7 @@ export function AnsibleArchitectLayout() {
                  toast({
                     title: "YAML Inventory Validation Successful (with warnings)",
                     description: summary,
-                    variant: "default", // Use default for success with warnings
+                    variant: "default",
                     className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
                 });
             } else {
@@ -670,11 +678,140 @@ export function AnsibleArchitectLayout() {
     }
   };
 
+  const validateJsonInventoryContent = (content: string, fileName: string) => {
+    try {
+      const inventory = JSON.parse(content);
+      if (typeof inventory !== 'object' || inventory === null || Array.isArray(inventory)) {
+        toast({
+          title: "JSON Inventory Validation Failed",
+          description: `File "${fileName}" (JSON) root must be an object.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let hostCount = 0;
+      let groupCount = 0;
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      const processedHosts = new Set<string>();
+
+      // Check for _meta structure
+      if (inventory._meta) {
+        if (typeof inventory._meta !== 'object' || inventory._meta === null || Array.isArray(inventory._meta)) {
+          errors.push("'_meta' key must be an object.");
+        } else if (inventory._meta.hostvars) {
+          if (typeof inventory._meta.hostvars !== 'object' || inventory._meta.hostvars === null || Array.isArray(inventory._meta.hostvars)) {
+            errors.push("'_meta.hostvars' must be an object.");
+          } else {
+            // Validate hostvars structure
+            for (const hostName in inventory._meta.hostvars) {
+              processedHosts.add(hostName);
+              if (typeof inventory._meta.hostvars[hostName] !== 'object' || inventory._meta.hostvars[hostName] === null || Array.isArray(inventory._meta.hostvars[hostName])) {
+                warnings.push(`Host variables for '${hostName}' in _meta.hostvars should be an object.`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Process groups
+      for (const groupName in inventory) {
+        if (groupName === "_meta") continue; // Skip _meta, already handled
+
+        groupCount++;
+        const groupData = inventory[groupName];
+
+        if (typeof groupData !== 'object' || groupData === null || Array.isArray(groupData)) {
+          errors.push(`Group '${groupName}' must be an object.`);
+          continue;
+        }
+
+        if (groupData.hosts) {
+          if (!Array.isArray(groupData.hosts)) {
+            errors.push(`'hosts' key in group '${groupName}' must be an array.`);
+          } else {
+            groupData.hosts.forEach((host: any) => {
+              if (typeof host !== 'string') {
+                warnings.push(`Host entry in group '${groupName}' is not a string: ${JSON.stringify(host)}.`);
+              } else {
+                processedHosts.add(host);
+              }
+            });
+          }
+        }
+
+        if (groupData.children) {
+          if (!Array.isArray(groupData.children)) {
+            errors.push(`'children' key in group '${groupName}' must be an array.`);
+          } else {
+            groupData.children.forEach((childGroup: any) => {
+              if (typeof childGroup !== 'string') {
+                warnings.push(`Child group entry in group '${groupName}' is not a string: ${JSON.stringify(childGroup)}.`);
+              }
+              // Could add check if childGroup exists as a top-level key, but that's more complex
+            });
+          }
+        }
+        
+        if (groupData.vars) {
+          if (typeof groupData.vars !== 'object' || groupData.vars === null || Array.isArray(groupData.vars)) {
+            errors.push(`'vars' key in group '${groupName}' must be an object.`);
+          }
+        }
+      }
+      hostCount = processedHosts.size;
+
+
+      if (errors.length > 0) {
+        toast({
+          title: "JSON Inventory Validation Failed",
+          description: `File "${fileName}" (JSON) has structural errors: ${errors.join("; ")}`,
+          variant: "destructive",
+        });
+      } else {
+        let summary = `File "${fileName}" (JSON) syntax is valid. `;
+        summary += `Found ${groupCount} group(s) and ${hostCount} unique host(s).`;
+        if (inventory._meta?.hostvars) {
+            summary += ` Contains '_meta.hostvars'.`;
+        }
+        if (warnings.length > 0) {
+          summary += ` Warnings: ${warnings.join("; ")}`;
+          toast({
+            title: "JSON Inventory Validation Successful (with warnings)",
+            description: summary,
+            variant: "default",
+            className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
+          });
+        } else {
+          toast({
+            title: "JSON Inventory Validation Successful",
+            description: summary,
+            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+          });
+        }
+      }
+
+    } catch (error) {
+      let errorMessage = "Invalid JSON syntax.";
+      if (error instanceof SyntaxError) {
+        errorMessage = `Invalid JSON syntax: ${error.message}`;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast({
+        title: "JSON Inventory Validation Failed",
+        description: `Error in "${fileName}" (JSON): ${errorMessage}`,
+        variant: "destructive",
+      });
+      console.error("JSON Inventory Validation Error:", error);
+    }
+  };
+
 
   const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      // No toast needed if no file is selected, as it's a user cancellation.
       return;
     }
 
@@ -682,15 +819,17 @@ export function AnsibleArchitectLayout() {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (content) {
-        const fileName = file.name.toLowerCase();
-        if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
+        const fileNameLower = file.name.toLowerCase();
+        if (fileNameLower.endsWith(".yaml") || fileNameLower.endsWith(".yml")) {
           validateYamlInventoryContent(content, file.name);
-        } else if (fileName.endsWith(".ini") || file.type === "text/plain" || fileName.includes("hosts")) { 
+        } else if (fileNameLower.endsWith(".json")) {
+          validateJsonInventoryContent(content, file.name);
+        } else if (fileNameLower.endsWith(".ini") || file.type === "text/plain" || fileNameLower.includes("hosts")) { 
           validateIniInventoryContent(content, file.name);
         } else {
             toast({
                 title: "Unknown File Type",
-                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, or .yml extensions, or a file named 'hosts'.`,
+                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, .yml, or .json extensions, or a file named 'hosts'.`,
                 variant: "default",
             });
         }
@@ -703,7 +842,6 @@ export function AnsibleArchitectLayout() {
     };
     reader.readAsText(file);
 
-    // Reset file input to allow selecting the same file again
     if (inventoryInputRef.current) {
       inventoryInputRef.current.value = "";
     }
@@ -732,7 +870,7 @@ export function AnsibleArchitectLayout() {
       <Tabs
         value={activePlaybookId || ""}
         onValueChange={setActivePlaybookId}
-        className="flex flex-col flex-1 min-w-0"
+        className="flex flex-col flex-1 min-w-0 min-h-0" 
       >
         <div className="flex items-center border-b bg-card rounded-t-lg">
           <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
@@ -782,7 +920,7 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-4 h-4" />
           </Button>
         </div>
-
+        
         <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
             {playbooks.map(p => (
             <TabsContent
@@ -798,34 +936,34 @@ export function AnsibleArchitectLayout() {
                 className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
                 aria-dropeffect="copy"
                 >
-                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                <div className="flex-grow overflow-hidden p-3">
-                    <TaskList
-                    tasks={p.tasks}
-                    onUpdateTask={updateTaskInActivePlaybook}
-                    onDeleteTask={deleteTaskInActivePlaybook}
-                    onMoveTask={moveTaskInActivePlaybook}
-                    definedRoles={definedRoles}
-                    hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                    onSetHoveredTaskId={setHoveredTaskId}
-                    />
-                </div>
+                  <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+                  <div className="flex-grow overflow-hidden p-3">
+                      <TaskList
+                      tasks={p.tasks}
+                      onUpdateTask={updateTaskInActivePlaybook}
+                      onDeleteTask={deleteTaskInActivePlaybook}
+                      onMoveTask={moveTaskInActivePlaybook}
+                      definedRoles={definedRoles}
+                      hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                      onSetHoveredTaskId={setHoveredTaskId}
+                      />
+                  </div>
                 </div>
 
                 <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
                 <div
-                style={{ flex: '1 1 0%' }}
-                className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                  style={{ flex: '1 1 0%' }}
+                  className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
                 >
-                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-                <div className="flex-grow overflow-hidden">
-                    <YamlDisplay
-                    yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
-                    hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                    onSetHoveredSegmentId={setHoveredTaskId}
-                    />
-                </div>
+                  <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
+                  <div className="flex-grow overflow-hidden">
+                      <YamlDisplay
+                      yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
+                      hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                      onSetHoveredSegmentId={setHoveredTaskId}
+                      />
+                  </div>
                 </div>
             </TabsContent>
             ))}
@@ -856,7 +994,7 @@ export function AnsibleArchitectLayout() {
             type="file"
             ref={inventoryInputRef}
             onChange={handleInventoryFileChange}
-            accept=".ini,.yaml,.yml,text/plain,inventory/*,hosts"
+            accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
             className="hidden"
           />
           <Separator className="my-2"/>
@@ -953,3 +1091,4 @@ export function AnsibleArchitectLayout() {
   );
 }
 
+    
