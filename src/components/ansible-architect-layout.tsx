@@ -12,10 +12,24 @@ import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { moduleGroups } from "@/config/ansible-modules";
 
+const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
+
 export function AnsibleArchitectLayout() {
   const [tasks, setTasks] = React.useState<AnsibleTask[]>([]);
   const { toast } = useToast();
-  const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+  const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
+
+  const [col1Width, setCol1Width] = React.useState(350);
+  const [col2Width, setCol2Width] = React.useState(350);
+  
+  const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
+  const [startX, setStartX] = React.useState(0);
+  const [initialCol1W, setInitialCol1W] = React.useState(0);
+  const [initialCol2W, setInitialCol2W] = React.useState(0);
+
+  const totalModuleCount = React.useMemo(() => {
+    return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
+  }, [moduleGroups]); 
 
   const addTask = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     let newTask: AnsibleTask;
@@ -88,9 +102,9 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDropOnTaskList = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    setIsDraggingOver(false);
+    setIsDraggingOverTaskList(false);
     try {
       const moduleDataString = event.dataTransfer.getData("application/json");
       if (moduleDataString) {
@@ -103,54 +117,115 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOverTaskList = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
-    if (!isDraggingOver) setIsDraggingOver(true);
+    if (!isDraggingOverTaskList) setIsDraggingOverTaskList(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDraggingOver(false);
+  const handleDragLeaveTaskList = () => {
+    setIsDraggingOverTaskList(false);
   };
 
-  const totalModuleCount = React.useMemo(() => {
-    return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
-  }, [moduleGroups]);
+  const handleMouseDown = (resizerId: "col1" | "col2", event: React.MouseEvent) => {
+    event.preventDefault();
+    setDraggingResizer(resizerId);
+    setStartX(event.clientX);
+    setInitialCol1W(col1Width);
+    setInitialCol2W(col2Width);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseMove = React.useCallback((event: MouseEvent) => {
+    if (!draggingResizer) return;
+    const deltaX = event.clientX - startX;
+    if (draggingResizer === "col1") {
+      const newW1 = initialCol1W + deltaX;
+      setCol1Width(Math.max(MIN_COLUMN_WIDTH, newW1));
+    } else if (draggingResizer === "col2") {
+      const newW2 = initialCol2W + deltaX;
+      setCol2Width(Math.max(MIN_COLUMN_WIDTH, newW2));
+    }
+  }, [draggingResizer, startX, initialCol1W, initialCol2W]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setDraggingResizer(null);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  React.useEffect(() => {
+    if (draggingResizer) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    } else {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [draggingResizer, handleMouseMove, handleMouseUp]);
+
+  const Resizer = ({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) => (
+    <div
+      onMouseDown={onMouseDown}
+      className="w-2 h-full cursor-col-resize bg-border hover:bg-primary/20 transition-colors flex-shrink-0"
+      role="separator"
+      aria-label="Resize column"
+    />
+  );
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
-      {/* Column 1: Module Palette */}
-      <div className="flex-1 min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
-        <div className="p-3 flex items-center border-b flex-shrink-0">
-          <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
-          <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
+      {/* Container for the first 3 resizable columns */}
+      <div className="flex flex-1 min-w-0">
+        {/* Column 1: Module Palette */}
+        <div 
+          style={{ flex: `0 0 ${col1Width}px` }}
+          className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+        >
+          <div className="p-3 flex items-center border-b flex-shrink-0">
+            <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
+            <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
+          </div>
+          <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
         </div>
-        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+
+        <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
+
+        {/* Column 2: Playbook Tasks */}
+        <div 
+          style={{ flex: `0 0 ${col2Width}px` }}
+          onDrop={handleDropOnTaskList}
+          onDragOver={handleDragOverTaskList}
+          onDragLeave={handleDragLeaveTaskList}
+          className={`min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+          aria-dropeffect="copy"
+        >
+          <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+          <div className="flex-grow overflow-hidden p-3">
+            <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+          </div>
+        </div>
+
+        <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+
+        {/* Column 3: Generated YAML */}
+        <div 
+          style={{ flex: '1 1 0%' }}
+          className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+        >
+          <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML</h2>
+          <div className="flex-grow overflow-hidden">
+            <YamlDisplay tasks={tasks} />
+          </div>
+        </div>
       </div>
 
-      {/* Column 2: Playbook Tasks */}
-      <div 
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        className={`flex-1 min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden transition-colors ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
-        aria-dropeffect="copy"
-      >
-        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-        <div className="flex-grow overflow-hidden p-3">
-          <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
-        </div>
-      </div>
-
-      {/* Column 3: Generated YAML */}
-      <div className="flex-1 min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
-        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML</h2>
-        <div className="flex-grow overflow-hidden">
-          <YamlDisplay tasks={tasks} />
-        </div>
-      </div>
-
-      {/* Column 4: Actions */}
+      {/* Column 4: Actions (Fixed Width) */}
       <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col p-3 space-y-2">
         <h2 className="text-base font-semibold mb-1 text-foreground font-headline flex-shrink-0">Actions</h2>
         <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
