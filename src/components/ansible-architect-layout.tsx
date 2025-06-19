@@ -25,7 +25,7 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
   const segments: YamlSegment[] = [];
   const playbookStructure: AnsiblePlaybookYAML = [
     {
-      id: "play1",
+      id: "play1", // This ID is internal to YAML generation, not the playbook's main ID
       name: playbookName,
       hosts: "all",
       become: true,
@@ -104,6 +104,7 @@ interface StoppableEvent {
 export function AnsibleArchitectLayout() {
   const [playbooks, setPlaybooks] = React.useState<PlaybookState[]>([]);
   const [activePlaybookId, setActivePlaybookId] = React.useState<string | null>(null);
+  const [isClientReady, setIsClientReady] = React.useState(false);
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
@@ -128,28 +129,40 @@ export function AnsibleArchitectLayout() {
   React.useEffect(() => {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
     const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
+    let initialPlaybooks: PlaybookState[] = [];
+    let initialActiveId: string | null = null;
+  
     if (storedPlaybooks) {
       try {
-        const parsedPlaybooks = JSON.parse(storedPlaybooks);
+        const parsedPlaybooks = JSON.parse(storedPlaybooks) as PlaybookState[];
         if (Array.isArray(parsedPlaybooks) && parsedPlaybooks.length > 0) {
-          setPlaybooks(parsedPlaybooks);
+          initialPlaybooks = parsedPlaybooks;
           if (storedActiveId && parsedPlaybooks.some((p: PlaybookState) => p.id === storedActiveId)) {
-            setActivePlaybookId(storedActiveId);
+            initialActiveId = storedActiveId;
           } else {
-            setActivePlaybookId(parsedPlaybooks[0].id);
+            initialActiveId = parsedPlaybooks[0].id;
           }
-          return;
         }
       } catch (error) {
         console.error("Error parsing playbooks from localStorage:", error);
+        // Fall through to create default if parsing fails or data is invalid
       }
     }
-    const defaultPlaybook = createNewPlaybook("Default Playbook");
-    setPlaybooks([defaultPlaybook]);
-    setActivePlaybookId(defaultPlaybook.id);
-  }, []);
+  
+    if (initialPlaybooks.length === 0) {
+      const defaultPlaybook = createNewPlaybook("Default Playbook");
+      initialPlaybooks = [defaultPlaybook];
+      initialActiveId = defaultPlaybook.id;
+    }
+  
+    setPlaybooks(initialPlaybooks);
+    setActivePlaybookId(initialActiveId);
+    setIsClientReady(true); // Signal that client-side initialization is complete
+  }, []); // Empty dependency array ensures this runs once on client mount
 
   React.useEffect(() => {
+    if (!isClientReady) return; // Don't save to localStorage until client is ready
+
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
     } else {
@@ -160,17 +173,19 @@ export function AnsibleArchitectLayout() {
     } else {
       localStorage.removeItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
     }
-  }, [playbooks, activePlaybookId]);
+  }, [playbooks, activePlaybookId, isClientReady]);
 
   const getActivePlaybook = React.useCallback(() => {
+    if (!isClientReady) return undefined;
     return playbooks.find(p => p.id === activePlaybookId);
-  }, [playbooks, activePlaybookId]);
+  }, [playbooks, activePlaybookId, isClientReady]);
 
   const updateActivePlaybookState = React.useCallback((updatedFields: Partial<PlaybookState>) => {
+    if (!isClientReady) return;
     setPlaybooks(prev =>
       prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedFields } : p))
     );
-  }, [activePlaybookId]);
+  }, [activePlaybookId, isClientReady]);
 
 
   const activePlaybook = getActivePlaybook();
@@ -183,7 +198,7 @@ export function AnsibleArchitectLayout() {
 
   const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return;
+    if (!currentActivePlaybook || !isClientReady) return;
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -206,7 +221,7 @@ export function AnsibleArchitectLayout() {
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return;
+    if (!currentActivePlaybook || !isClientReady) return;
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
@@ -214,7 +229,7 @@ export function AnsibleArchitectLayout() {
 
   const deleteTaskInActivePlaybook = (taskId: string) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return;
+    if (!currentActivePlaybook || !isClientReady) return;
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.filter(task => task.id !== taskId),
     });
@@ -222,7 +237,7 @@ export function AnsibleArchitectLayout() {
 
   const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return;
+    if (!currentActivePlaybook || !isClientReady) return;
     const newTasks = [...currentActivePlaybook.tasks];
     const [draggedItem] = newTasks.splice(dragIndex, 1);
     newTasks.splice(hoverIndex, 0, draggedItem);
@@ -230,7 +245,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleExportYaml = () => {
-    if (!fullYamlContent) {
+    if (!isClientReady || !fullYamlContent) {
       toast({ title: "Error", description: "No YAML content to export.", variant: "destructive" });
       return;
     }
@@ -247,7 +262,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleCopyYaml = async () => {
-    if (!fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") {
+    if (!isClientReady || !fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") {
       toast({ title: "Nothing to Copy", description: "Generated YAML is empty.", variant: "default" });
       return;
     }
@@ -262,7 +277,7 @@ export function AnsibleArchitectLayout() {
 
   const handleValidatePlaybook = () => {
     const currentActivePlaybook = getActivePlaybook();
-    if (!currentActivePlaybook || currentActivePlaybook.tasks.length === 0) {
+    if (!isClientReady || !currentActivePlaybook || currentActivePlaybook.tasks.length === 0) {
       toast({
         title: "Validation",
         description: "Active playbook is empty. Nothing to validate.",
@@ -290,7 +305,7 @@ export function AnsibleArchitectLayout() {
   const handleDropOnTaskList = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDraggingOverTaskList(false);
-    if (!activePlaybookId) {
+    if (!isClientReady || !activePlaybookId) {
       toast({ title: "Error", description: "No active playbook to add tasks to.", variant: "destructive" });
       return;
     }
@@ -390,6 +405,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleNewPlaybook = () => {
+    if (!isClientReady) return;
     const newPBook = createNewPlaybook();
     setPlaybooks(prev => [...prev, newPBook]);
     setActivePlaybookId(newPBook.id);
@@ -398,22 +414,31 @@ export function AnsibleArchitectLayout() {
 
   const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent) => {
     event.stopPropagation();
+    if (!isClientReady) return;
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
     
     setPlaybooks(prev => {
       const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
       if (remainingPlaybooks.length === 0) {
         const newDefault = createNewPlaybook("Default Playbook");
-        setActivePlaybookId(newDefault.id);
+        setActivePlaybookId(newDefault.id); // Set active ID before returning new array
         return [newDefault];
       }
       if (activePlaybookId === playbookIdToClose) {
         const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { 
-            setActivePlaybookId(prev[closedTabIndex -1].id);
-        } else { 
-            setActivePlaybookId(remainingPlaybooks[0].id);
+        // Determine new active ID *before* filtering 'prev'
+        let newActiveId = remainingPlaybooks[0].id; // Default to first remaining
+        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { // Check against original length of remaining
+             // If closed tab was not the first, try to activate the one before it IN THE ORIGINAL LIST.
+             // This requires finding the equivalent in remainingPlaybooks or defaulting.
+             // Find index in 'prev' (original list), then try to get 'prev[closedTabIndex-1].id'
+             // if it exists in 'remainingPlaybooks'.
+            const potentialPrevPlaybook = prev[closedTabIndex -1];
+            if (remainingPlaybooks.some(r => r.id === potentialPrevPlaybook.id)) {
+                newActiveId = potentialPrevPlaybook.id;
+            }
         }
+        setActivePlaybookId(newActiveId);
       }
       return remainingPlaybooks;
     });
@@ -424,13 +449,14 @@ export function AnsibleArchitectLayout() {
 
   const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent) => {
     event.stopPropagation();
+    if (!isClientReady) return;
     setRenamingPlaybookId(playbookId);
     setTempPlaybookName(currentName);
     setIsRenameModalOpen(true);
   };
 
   const handleRenamePlaybook = () => {
-    if (!renamingPlaybookId || tempPlaybookName.trim() === "") {
+    if (!isClientReady || !renamingPlaybookId || tempPlaybookName.trim() === "") {
       toast({title: "Error", description: "Playbook name cannot be empty.", variant: "destructive"});
       return;
     }
@@ -441,15 +467,30 @@ export function AnsibleArchitectLayout() {
     setTempPlaybookName("");
   };
 
-  if (!activePlaybook && playbooks.length > 0 && !activePlaybookId) {
-     setActivePlaybookId(playbooks[0].id);
-     return <div className="flex h-screen items-center justify-center">Initializing...</div>;
+
+  if (!isClientReady) {
+    return <div className="flex h-screen items-center justify-center bg-background text-foreground">Loading playbooks...</div>;
   }
-  if (!activePlaybook && playbooks.length === 0) { // Should be caught by init, but defensive
-      const defaultPlaybook = createNewPlaybook("Default Playbook");
-      setPlaybooks([defaultPlaybook]);
-      setActivePlaybookId(defaultPlaybook.id);
-      return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
+
+  // At this point, isClientReady is true, so playbooks and activePlaybookId should be set.
+  // The activePlaybook variable itself might still be null for a brief moment if setActivePlaybookId
+  // hasn't fully propagated. The check below is a safeguard.
+  if (!activePlaybook && playbooks.length > 0) {
+    // This case should ideally be less frequent with the new isClientReady logic,
+    // but it can happen if activePlaybookId somehow becomes invalid.
+    // Re-evaluate if this is still necessary or if it can be removed.
+    // For now, keeping it to ensure an active playbook is selected if possible.
+    console.warn("Attempting to re-sync active playbook ID.");
+    setActivePlaybookId(playbooks[0].id); // setActivePlaybookId will trigger a re-render
+    return <div className="flex h-screen items-center justify-center bg-background text-foreground">Re-initializing active playbook...</div>;
+  }
+  
+  if (!activePlaybook) {
+    // This means playbooks array is empty or activePlaybookId is truly invalid and no playbooks exist.
+    // This should be very rare after the initial useEffect.
+    // A more robust solution might be to create a new default playbook here if playbooks is empty.
+     console.error("Critical: No active playbook and no playbooks available after client ready.");
+     return <div className="flex h-screen items-center justify-center bg-background text-red-500">Error: No playbook available. Please refresh.</div>;
   }
 
 
@@ -469,7 +510,7 @@ export function AnsibleArchitectLayout() {
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
       <Tabs
-        value={activePlaybookId || ""}
+        value={activePlaybookId || ""} // Ensure value is always a string
         onValueChange={setActivePlaybookId}
         className="flex flex-col flex-1 min-w-0 min-h-0" 
       >
@@ -519,7 +560,7 @@ export function AnsibleArchitectLayout() {
             <TabsContent
                 key={p.id}
                 value={p.id}
-                className="absolute inset-0 flex data-[state=inactive]:hidden"
+                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0" // Ensure mt-0 here as well
             >
                 <div
                 style={{ flex: `0 0 ${col2Width}px` }}
@@ -672,3 +713,5 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
+    
