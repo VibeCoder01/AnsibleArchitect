@@ -17,9 +17,10 @@ import {
 
 interface ModulePaletteProps {
   onAddTaskFromPalette: (module: AnsibleModuleDefinition) => void;
+  totalModuleCount: number;
 }
 
-export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
+export function ModulePalette({ onAddTaskFromPalette, totalModuleCount }: ModulePaletteProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>, module: AnsibleModuleDefinition) => {
@@ -47,6 +48,8 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
   const defaultOpenGroups = searchTerm.trim() 
     ? filteredModuleGroups.map(g => g.name) 
     : ["File Management", "Package Management", "System & Services"];
+  
+  const searchPlaceholder = `Search ${totalModuleCount} modules...`;
 
   return (
     <div className="h-full flex flex-col">
@@ -55,7 +58,7 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
           <SearchIcon className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search modules..."
+            placeholder={searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-8 h-9 text-sm w-full"

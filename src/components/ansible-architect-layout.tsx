@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Download, ClipboardCheck, ExternalLink } from "lucide-react";
 import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
+import { moduleGroups } from "@/config/ansible-modules";
 
 export function AnsibleArchitectLayout() {
   const [tasks, setTasks] = React.useState<AnsibleTask[]>([]);
@@ -112,6 +113,10 @@ export function AnsibleArchitectLayout() {
     setIsDraggingOver(false);
   };
 
+  const totalModuleCount = React.useMemo(() => {
+    return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
+  }, [moduleGroups]);
+
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
       {/* Column 1: Module Palette */}
@@ -120,7 +125,7 @@ export function AnsibleArchitectLayout() {
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
         </div>
-        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} totalModuleCount={totalModuleCount} />
       </div>
 
       {/* Column 2: Playbook Tasks */}
