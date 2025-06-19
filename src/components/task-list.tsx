@@ -6,7 +6,7 @@ import type { AnsibleTask } from "@/types/ansible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, PlusCircle, X, UserCog, ListTree, Shell, GitFork, CalendarClock } from "lucide-react";
+import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, PlusCircle, X, UserCog, ListTree, Shell, GitFork, CalendarClock, DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,11 @@ const moduleIcons: Record<string, React.ElementType> = {
   command: Shell,
   git: GitFork,
   cron: CalendarClock,
+  get_url: DownloadCloud,
+  unarchive: ArchiveRestore,
+  lineinfile: FileEdit,
+  blockinfile: TextSelect,
+  firewalld: ShieldCheck,
   default: PuzzleIconInternal,
 };
 
@@ -109,7 +114,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
   };
 
   return (
-    <ScrollArea className="h-full p-0.5 flex-grow"> {/* This ScrollArea will manage scrolling */}
+    <ScrollArea className="h-full p-0.5 flex-grow">
       {tasks.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
           <PuzzleIconInternal className="w-12 h-12 mx-auto mb-3 opacity-60" />
@@ -243,4 +248,3 @@ function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-
