@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy } from "lucide-react";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
-import { moduleGroups } from "@/config/ansible-modules";
 
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
 
@@ -92,10 +91,6 @@ export function AnsibleArchitectLayout() {
   const [startX, setStartX] = React.useState(0);
   const [initialCol1W, setInitialCol1W] = React.useState(0);
   const [initialCol2W, setInitialCol2W] = React.useState(0);
-
-  const totalModuleCount = React.useMemo(() => {
-    return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
-  }, [moduleGroups]); // Corrected dependency array
 
   const yamlContent = React.useMemo(() => generatePlaybookYaml(tasks), [tasks]);
 
@@ -324,10 +319,7 @@ export function AnsibleArchitectLayout() {
           </a>
         </Button>
         <Separator className="my-2"/>
-         <div className="flex items-center text-xs text-muted-foreground pt-1">
-          <Info className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
-          <span>{totalModuleCount} Modules Available</span>
-        </div>
+         {/* The module count display was here and has been removed */}
       </div>
     </div>
   );
