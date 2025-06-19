@@ -177,6 +177,7 @@ export function AnsibleArchitectLayout() {
   }, [playbooks, activePlaybookId, isClientReady]);
 
   const getActivePlaybook = React.useCallback(() => {
+    // This check is important to avoid using data before it's ready on client-side
     if (!isClientReady) return undefined;
     return playbooks.find(p => p.id === activePlaybookId);
   }, [playbooks, activePlaybookId, isClientReady]);
@@ -297,9 +298,14 @@ export function AnsibleArchitectLayout() {
     } catch (error) {
       toast({
         title: "Validation Failed",
-        description: `Invalid YAML syntax for ${currentActivePlaybook.name}.`,
+        description: `Invalid YAML syntax for ${currentActivePlaybook.name}. See console for details.`,
         variant: "destructive",
       });
+      if (error instanceof Error) {
+        console.error("Playbook YAML Validation Error:", error.message);
+      } else {
+        console.error("Playbook YAML Validation Error:", error);
+      }
     }
   };
 
@@ -463,7 +469,7 @@ export function AnsibleArchitectLayout() {
     setTempPlaybookName("");
   };
 
-  const validateInventoryContent = (content: string, fileName: string) => {
+  const validateIniInventoryContent = (content: string, fileName: string) => {
     const lines = content.split(/\r?\n/);
     let currentGroup: string | null = null;
     const groups: Record<string, string[]> = {};
@@ -485,47 +491,43 @@ export function AnsibleArchitectLayout() {
           break;
         }
         if (groupName.endsWith(":vars")) { // Handle group vars section
-           currentGroup = groupName; // e.g. [webservers:vars]
-           if (!groups[groupName]) groups[groupName] = [];
+           currentGroup = groupName; 
+           if (!groups[currentGroup]) groups[currentGroup] = [];
         } else {
            currentGroup = groupName;
            if (!groups[currentGroup]) groups[currentGroup] = [];
         }
       } else if (currentGroup) {
-        // This is either a host or a variable within a [group:vars] section
         const parts = line.split(/\s+/);
         const hostOrVarName = parts[0];
         
-        if (hostOrVarName.includes("=")) { // Likely a var if it starts with key=value
-            if (!currentGroup.endsWith(":vars")) { // Vars should be under [group:vars]
+        if (hostOrVarName.includes("=")) { 
+            if (!currentGroup.endsWith(":vars")) { 
                 errorLine = i + 1;
                 errorMessage = `Variable definition "${line}" found outside a :vars section.`;
                 break;
             }
-            // Simple var validation: key=value
-            if (!/^\S+=\S+/.test(line.replace(/\s*#.*$/, ""))) { // also remove trailing comments
+            if (!/^\S+=\S+/.test(line.replace(/\s*#.*$/, ""))) { 
                  errorLine = i + 1;
                  errorMessage = `Malformed variable definition: ${line}`;
                  break;
             }
-            groups[currentGroup].push(line); // Store the var line
-        } else { // Host line
+            groups[currentGroup].push(line); 
+        } else { 
             if (currentGroup.endsWith(":vars")) {
                  errorLine = i + 1;
                  errorMessage = `Host definition "${hostOrVarName}" found inside a :vars section.`;
                  break;
             }
-            if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrVarName)) { // Basic check for host name validity
+            if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrVarName)) { 
                 errorLine = i + 1;
                 errorMessage = `Invalid characters in host name: ${hostOrVarName}`;
                 break;
             }
             groups[currentGroup].push(hostOrVarName);
             hostCount++;
-            // Further parsing of host variables (ansible_host=... etc.) can be added here
         }
       } else {
-        // Line is not a comment, not empty, not a group, and no current group context for host/var
         errorLine = i + 1;
         errorMessage = `Unexpected line format or host/variable outside a group: ${line}`;
         break;
@@ -534,19 +536,76 @@ export function AnsibleArchitectLayout() {
 
     if (errorLine !== -1) {
       toast({
-        title: "Inventory Validation Failed",
+        title: "INI Inventory Validation Failed",
         description: `Error in "${fileName}" on line ${errorLine}: ${errorMessage}`,
         variant: "destructive",
       });
     } else {
       const groupCount = Object.keys(groups).filter(g => !g.endsWith(":vars")).length;
       toast({
-        title: "Inventory Validation Successful",
-        description: `File "${fileName}" is valid. Found ${groupCount} group(s) and ${hostCount} host(s).`,
+        title: "INI Inventory Validation Successful",
+        description: `File "${fileName}" (INI) is valid. Found ${groupCount} group(s) and ${hostCount} host(s).`,
         className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
       });
     }
   };
+
+  const validateYamlInventoryContent = (content: string, fileName: string) => {
+    try {
+      const inventory = yaml.load(content);
+      if (typeof inventory !== 'object' || inventory === null) {
+        toast({
+          title: "YAML Inventory Validation Failed",
+          description: `File "${fileName}" (YAML) root must be an object/dictionary.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let hostCount = 0;
+      let groupCount = 0;
+
+      // Basic structural check for common Ansible inventory patterns
+      const parsedInventory = inventory as Record<string, any>;
+      for (const groupName in parsedInventory) {
+        groupCount++;
+        const groupContent = parsedInventory[groupName];
+        if (typeof groupContent !== 'object' || groupContent === null) {
+          toast({
+            title: "YAML Inventory Validation Warning",
+            description: `Group "${groupName}" in "${fileName}" (YAML) is not structured as an object.`,
+            variant: "default", 
+          });
+          continue;
+        }
+        if (groupContent.hosts && typeof groupContent.hosts === 'object' && groupContent.hosts !== null) {
+          hostCount += Object.keys(groupContent.hosts).length;
+        }
+        // Further checks for 'children', 'vars' can be added here.
+      }
+
+      toast({
+        title: "YAML Inventory Validation Successful",
+        description: `File "${fileName}" (YAML) is valid. Found ${groupCount} top-level group(s) and an estimated ${hostCount} host(s).`,
+        className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+      });
+
+    } catch (error) {
+      let errorMessage = "Invalid YAML syntax.";
+      if (error instanceof yaml.YAMLException) {
+        errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`; // Keep it concise
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast({
+        title: "YAML Inventory Validation Failed",
+        description: `Error in "${fileName}" (YAML): ${errorMessage}`,
+        variant: "destructive",
+      });
+      console.error("YAML Inventory Validation Error:", error);
+    }
+  };
+
 
   const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -559,7 +618,19 @@ export function AnsibleArchitectLayout() {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (content) {
-        validateInventoryContent(content, file.name);
+        const fileName = file.name.toLowerCase();
+        if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
+          validateYamlInventoryContent(content, file.name);
+        } else if (fileName.endsWith(".ini") || file.type === "text/plain" || fileName.includes("hosts")) { 
+          // Attempt INI for .ini, text/plain, or files named 'hosts'
+          validateIniInventoryContent(content, file.name);
+        } else {
+            toast({
+                title: "Unknown File Type",
+                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, or .yml extensions.`,
+                variant: "default",
+            });
+        }
       } else {
         toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
       }
@@ -569,7 +640,6 @@ export function AnsibleArchitectLayout() {
     };
     reader.readAsText(file);
 
-    // Reset the file input to allow selecting the same file again
     if (inventoryInputRef.current) {
       inventoryInputRef.current.value = "";
     }
@@ -577,13 +647,6 @@ export function AnsibleArchitectLayout() {
 
   if (!isClientReady) {
     return <div className="flex h-screen items-center justify-center bg-background text-foreground">Loading playbooks...</div>;
-  }
-
-  if (!activePlaybook) {
-     // This case should ideally not be reached if isClientReady is true and playbooks are initialized.
-     // It's a safeguard.
-     console.error("Critical: No active playbook available after client ready state and initialization.");
-     return <div className="flex h-screen items-center justify-center bg-background text-red-500">Error: No playbook available. Please refresh or check console.</div>;
   }
 
 
@@ -605,7 +668,7 @@ export function AnsibleArchitectLayout() {
       <Tabs
         value={activePlaybookId || ""}
         onValueChange={setActivePlaybookId}
-        className="flex flex-col flex-1 min-w-0 min-h-0"
+        className="flex flex-col flex-1 min-w-0"
       >
         <div className="flex items-center border-b bg-card rounded-t-lg">
           <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
@@ -729,7 +792,7 @@ export function AnsibleArchitectLayout() {
             type="file"
             ref={inventoryInputRef}
             onChange={handleInventoryFileChange}
-            accept=".ini, text/plain, inventory/*"
+            accept=".ini,.yaml,.yml,text/plain,inventory/*"
             className="hidden"
           />
           <Separator className="my-2"/>
