@@ -2,85 +2,13 @@
 "use client";
 
 import * as React from "react";
-import type { AnsibleTask, AnsiblePlaybook } from "@/types/ansible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface YamlDisplayProps {
-  tasks: AnsibleTask[]; 
+  yamlContent: string;
 }
 
-function generatePlaybookYaml(tasks: AnsibleTask[]): string {
-  const playbook: AnsiblePlaybook = [
-    {
-      id: "play1",
-      name: "Generated Playbook",
-      hosts: "all", 
-      become: true,   
-      tasks: tasks,
-    },
-  ];
-
-  let yamlString = "";
-  playbook.forEach(play => {
-    yamlString += `- name: ${play.name}\n`;
-    yamlString += `  hosts: ${play.hosts}\n`;
-    if (play.become !== undefined) {
-      yamlString += `  become: ${play.become ? 'yes' : 'no'}\n`;
-    }
-    if (play.tasks.length > 0) {
-      yamlString += `  tasks:\n`;
-      play.tasks.forEach(task => {
-        if (task.rawYAML) {
-          const lines = task.rawYAML.trim().split('\n');
-          lines.forEach((line, index) => {
-            if (index === 0 && !line.trim().startsWith('-')) {
-               yamlString += `    - ${line.trim()}\n`; 
-            } else if (index === 0 && line.trim().startsWith('-')) {
-               yamlString += `    ${line.trim()}\n`; 
-            }
-            else {
-               yamlString += `      ${line.trim()}\n`; 
-            }
-          });
-        } else {
-          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`; 
-          if (task.comment) {
-            yamlString += `      # ${task.comment}\n`;
-          }
-          yamlString += `      ${task.module}:\n`;
-          Object.entries(task.parameters || {}).forEach(([key, value]) => {
-            let formattedValue = value;
-            if (typeof value === 'string') {
-              if (value.includes('\n')) {
-                formattedValue = `|-\n          ${value.split('\n').join('\n          ')}`;
-              } else if (value.includes(':') || value.includes('#') || value.includes('"') || value.includes("'") || ['yes', 'no', 'true', 'false', 'on', 'off', 'null'].includes(value.toLowerCase()) || /^\d/.test(value) || value.trim() === "") {
-                 formattedValue = `"${value.replace(/"/g, '\\"')}"`;
-              }
-            } else if (typeof value === 'boolean') {
-              formattedValue = value ? 'yes' : 'no';
-            } else if (value === null || value === undefined) {
-              formattedValue = 'null';
-            }
-            yamlString += `        ${key}: ${formattedValue}\n`;
-          });
-        }
-        yamlString += "\n"; 
-      });
-    } else {
-      yamlString += "  tasks: []\n\n";
-    }
-  });
-  return yamlString.trim();
-}
-
-
-export function YamlDisplay({ tasks }: YamlDisplayProps) {
-  const [yamlContent, setYamlContent] = React.useState("");
-
-  React.useEffect(() => {
-    setYamlContent(generatePlaybookYaml(tasks));
-  }, [tasks]);
-
+export function YamlDisplay({ yamlContent }: YamlDisplayProps) {
   return (
     <ScrollArea className="h-full w-full">
       <pre className="p-4 font-code text-xs whitespace-pre-wrap break-all" aria-label="Generated YAML playbook">

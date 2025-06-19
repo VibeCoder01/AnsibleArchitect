@@ -7,12 +7,78 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Info } from "lucide-react";
-import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
+import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy } from "lucide-react";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { moduleGroups } from "@/config/ansible-modules";
 
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
+
+// Moved generatePlaybookYaml function here
+function generatePlaybookYaml(tasks: AnsibleTask[]): string {
+  const playbook: AnsiblePlaybook = [
+    {
+      id: "play1",
+      name: "Generated Playbook",
+      hosts: "all",
+      become: true,
+      tasks: tasks,
+    },
+  ];
+
+  let yamlString = "";
+  playbook.forEach(play => {
+    yamlString += `- name: ${play.name}\n`;
+    yamlString += `  hosts: ${play.hosts}\n`;
+    if (play.become !== undefined) {
+      yamlString += `  become: ${play.become ? 'yes' : 'no'}\n`;
+    }
+    if (play.tasks.length > 0) {
+      yamlString += `  tasks:\n`;
+      play.tasks.forEach(task => {
+        if (task.rawYAML) {
+          const lines = task.rawYAML.trim().split('\n');
+          lines.forEach((line, index) => {
+            if (index === 0 && !line.trim().startsWith('-')) {
+               yamlString += `    - ${line.trim()}\n`; 
+            } else if (index === 0 && line.trim().startsWith('-')) {
+               yamlString += `    ${line.trim()}\n`; 
+            }
+            else {
+               yamlString += `      ${line.trim()}\n`; 
+            }
+          });
+        } else {
+          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`; 
+          if (task.comment) {
+            yamlString += `      # ${task.comment}\n`;
+          }
+          yamlString += `      ${task.module}:\n`;
+          Object.entries(task.parameters || {}).forEach(([key, value]) => {
+            let formattedValue = value;
+            if (typeof value === 'string') {
+              if (value.includes('\n')) {
+                formattedValue = `|-\n          ${value.split('\n').join('\n          ')}`;
+              } else if (value.includes(':') || value.includes('#') || value.includes('"') || value.includes("'") || ['yes', 'no', 'true', 'false', 'on', 'off', 'null'].includes(value.toLowerCase()) || /^\d/.test(value) || value.trim() === "") {
+                 formattedValue = `"${value.replace(/"/g, '\\"')}"`;
+              }
+            } else if (typeof value === 'boolean') {
+              formattedValue = value ? 'yes' : 'no';
+            } else if (value === null || value === undefined) {
+              formattedValue = 'null';
+            }
+            yamlString += `        ${key}: ${formattedValue}\n`;
+          });
+        }
+        yamlString += "\n"; 
+      });
+    } else {
+      yamlString += "  tasks: []\n\n";
+    }
+  });
+  return yamlString.trim();
+}
+
 
 export function AnsibleArchitectLayout() {
   const [tasks, setTasks] = React.useState<AnsibleTask[]>([]);
@@ -30,6 +96,8 @@ export function AnsibleArchitectLayout() {
   const totalModuleCount = React.useMemo(() => {
     return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
   }, [moduleGroups]); 
+
+  const yamlContent = React.useMemo(() => generatePlaybookYaml(tasks), [tasks]);
 
   const addTask = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     let newTask: AnsibleTask;
@@ -72,13 +140,11 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleExportYaml = () => {
-    const yamlPreElement = document.querySelector('pre[aria-label="Generated YAML playbook"]');
-    if (!yamlPreElement || !yamlPreElement.textContent) {
+    if (!yamlContent) {
       toast({ title: "Error", description: "No YAML content to export.", variant: "destructive" });
       return;
     }
-    const playbookYaml = yamlPreElement.textContent;
-    const blob = new Blob([playbookYaml], { type: "text/yaml;charset=utf-8" });
+    const blob = new Blob([yamlContent], { type: "text/yaml;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "playbook.yml";
@@ -87,6 +153,20 @@ export function AnsibleArchitectLayout() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
     toast({ title: "Exported", description: "Playbook YAML downloaded." });
+  };
+
+  const handleCopyYaml = async () => {
+    if (!yamlContent || yamlContent.trim() === "" || yamlContent.trim() === "# Add tasks to see YAML output here") {
+      toast({ title: "Nothing to Copy", description: "Generated YAML is empty.", variant: "default" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(yamlContent);
+      toast({ title: "Copied", description: "YAML copied to clipboard." });
+    } catch (err) {
+      console.error("Failed to copy YAML: ", err);
+      toast({ title: "Error", description: "Failed to copy YAML to clipboard.", variant: "destructive" });
+    }
   };
 
   const handleValidatePlaybook = () => {
@@ -220,7 +300,7 @@ export function AnsibleArchitectLayout() {
         >
           <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML</h2>
           <div className="flex-grow overflow-hidden">
-            <YamlDisplay tasks={tasks} />
+            <YamlDisplay yamlContent={yamlContent} />
           </div>
         </div>
       </div>
@@ -233,6 +313,9 @@ export function AnsibleArchitectLayout() {
         </Button>
         <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
           <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
+        </Button>
+        <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+          <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
         </Button>
         <Separator className="my-2"/>
         <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
