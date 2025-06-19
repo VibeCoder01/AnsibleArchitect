@@ -31,10 +31,18 @@ export interface AnsiblePlay {
   tasks: AnsibleTask[];
 }
 
-export type AnsiblePlaybook = AnsiblePlay[];
+export type AnsiblePlaybookYAML = AnsiblePlay[]; // Represents the structure written to YAML
 
 // Reference to a defined Ansible Role (name only for now)
 export interface AnsibleRoleRef {
   id: string;
   name: string;
+}
+
+// Represents the state of a single playbook file/tab in the UI
+export interface PlaybookState {
+  id: string; // Unique ID for this playbook instance
+  name: string; // User-defined name, e.g., "webservers.yml"
+  tasks: AnsibleTask[];
+  // Future: unsavedChanges?: boolean; filePath?: string;
 }
