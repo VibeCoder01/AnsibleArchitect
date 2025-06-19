@@ -391,7 +391,7 @@ export function AnsibleArchitectLayout() {
             </a>
           </Button>
           <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
-            <a href="https://docs.ansible.com/ansible/latest/user_guide/windows_intro.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
+            <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
             </a>
           </Button>
@@ -450,4 +450,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
