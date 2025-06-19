@@ -14,9 +14,10 @@ export interface YamlSegment {
 interface YamlDisplayProps {
   yamlSegments: YamlSegment[];
   hoveredTaskId: string | null;
+  onSetHoveredSegmentId: (taskId: string | null) => void;
 }
 
-export function YamlDisplay({ yamlSegments, hoveredTaskId }: YamlDisplayProps) {
+export function YamlDisplay({ yamlSegments, hoveredTaskId, onSetHoveredSegmentId }: YamlDisplayProps) {
   return (
     <ScrollArea className="h-full w-full">
       <pre className="p-4 font-code text-xs whitespace-pre-wrap break-all">
@@ -25,8 +26,19 @@ export function YamlDisplay({ yamlSegments, hoveredTaskId }: YamlDisplayProps) {
             <span
               key={segment.id || `segment-${index}`}
               className={cn({
-                'bg-primary/10 rounded-sm': segment.isTaskBlock && segment.id === hoveredTaskId,
+                'bg-primary/10 rounded-sm': segment.isTaskBlock && segment.id === hoveredTaskId && hoveredTaskId !== null,
+                'cursor-default': segment.isTaskBlock && segment.id, // Indicate hoverability for task blocks
               })}
+              onMouseEnter={() => {
+                if (segment.isTaskBlock && segment.id) {
+                  onSetHoveredSegmentId(segment.id);
+                }
+              }}
+              onMouseLeave={() => {
+                if (segment.isTaskBlock && segment.id) {
+                  onSetHoveredSegmentId(null);
+                }
+              }}
             >
               {segment.content}
             </span>

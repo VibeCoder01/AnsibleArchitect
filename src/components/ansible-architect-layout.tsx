@@ -76,7 +76,6 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[]): YamlSegment[] {
             taskBlockContent += `        ${key}: ${formattedValue}\n`;
           });
         }
-        // Ensure each task block ends with a newline, and add an extra for spacing if it's not the last task.
         taskBlockContent += "\n"; 
         segments.push({ id: task.id, content: taskBlockContent, isTaskBlock: true });
       });
@@ -342,6 +341,7 @@ export function AnsibleArchitectLayout() {
               onDeleteTask={deleteTask}
               onMoveTask={moveTask}
               definedRoles={definedRoles}
+              hoveredTaskId={hoveredTaskId}
               onSetHoveredTaskId={setHoveredTaskId}
             />
           </div>
@@ -356,7 +356,11 @@ export function AnsibleArchitectLayout() {
         >
           <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML</h2>
           <div className="flex-grow overflow-hidden">
-            <YamlDisplay yamlSegments={yamlSegments} hoveredTaskId={hoveredTaskId} />
+            <YamlDisplay 
+              yamlSegments={yamlSegments} 
+              hoveredTaskId={hoveredTaskId}
+              onSetHoveredSegmentId={setHoveredTaskId}
+            />
           </div>
         </div>
       </div>

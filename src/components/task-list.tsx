@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 
 interface TaskListProps {
@@ -36,6 +37,7 @@ interface TaskListProps {
   onDeleteTask: (taskId: string) => void;
   onMoveTask: (dragIndex: number, hoverIndex: number) => void;
   definedRoles?: AnsibleRoleRef[]; 
+  hoveredTaskId: string | null;
   onSetHoveredTaskId: (taskId: string | null) => void;
 }
 
@@ -209,7 +211,7 @@ interface EditableParameter {
 
 const MANUAL_ENTRY_VALUE = "_INTERNAL_MANUAL_ROLE_SELECTION_";
 
-export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [], onSetHoveredTaskId }: TaskListProps) {
+export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [], hoveredTaskId, onSetHoveredTaskId }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
   const [editableParameters, setEditableParameters] = React.useState<EditableParameter[]>([]);
@@ -301,7 +303,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
   
   const selectDisplayValue = (isRoleModuleType && definedRoles.some(r => r.name === currentRoleNameParamValue)) 
                              ? currentRoleNameParamValue 
-                             : "";
+                             : (isRoleModuleType && currentRoleNameParamValue === "" ? MANUAL_ENTRY_VALUE : "");
 
 
   return (
@@ -319,7 +321,10 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
             return (
               <Card
                 key={task.id}
-                className="bg-card shadow-sm hover:shadow-md transition-shadow group relative"
+                className={cn(
+                  "bg-card shadow-sm hover:shadow-md transition-all group relative",
+                  { 'bg-primary/10 ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
+                )}
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragEnter={() => handleDragEnter(index)}
@@ -397,7 +402,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                   <div>
                     <Label htmlFor="definedRoleSelect" className="font-medium">Select Defined Role</Label>
                     <Select
-                      value={selectDisplayValue}
+                      value={selectDisplayValue || MANUAL_ENTRY_VALUE}
                       onValueChange={(selectedValue) => {
                         if (selectedValue === MANUAL_ENTRY_VALUE) {
                           const nameParamIndex = editableParameters.findIndex(p => p.key === 'name');
@@ -406,7 +411,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                               prev.map((p, index) => (index === nameParamIndex ? { ...p, value: "" } : p))
                             );
                           } else {
-                            setEditableParameters(prev => [
+                             setEditableParameters(prev => [
                               ...prev,
                               { id: crypto.randomUUID(), key: 'name', value: '' },
                             ]);
