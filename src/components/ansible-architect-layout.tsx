@@ -500,49 +500,62 @@ export function AnsibleArchitectLayout() {
 
         } else if (currentGroup) {
             const hasEquals = line.includes("=");
-            
-            if (hasEquals) { // Variable definition
-                if (!isVarsSection) {
+            const parts = line.split(/\s+/);
+            const firstWord = parts[0];
+
+            if (isVarsSection) {
+                if (!hasEquals) {
                     errorLine = i + 1;
-                    errorMessage = `Variable definition "${line}" found outside a :vars section.`;
+                    errorMessage = `Non-variable line "${line}" found inside a :vars section. Variable lines must be in 'key=value' format.`;
                     break;
                 }
-                if (!/^\s*\S+\s*=\s*\S*/.test(line.replace(/\s*#.*$/, ""))) { 
+                 // Basic check for key=value format
+                if (!/^\s*\S+\s*=\s*\S+/.test(line.replace(/\s*#.*$/, ""))) { 
                     errorLine = i + 1;
-                    errorMessage = `Malformed variable definition: ${line}`;
+                    errorMessage = `Malformed variable definition: "${line}" in :vars section. Expected 'key=value'.`;
                     break;
                 }
-                groups[currentGroup].push(line); // Store the whole var line
-            } 
-            // Host or child group definition
-            else {
-                if (isVarsSection) {
+                groups[currentGroup].push(line);
+            } else if (isChildrenSection) {
+                if (hasEquals || line.includes(" ")) { 
                     errorLine = i + 1;
-                    errorMessage = `Non-variable line "${line}" found inside a :vars section.`;
+                    errorMessage = `Invalid entry in :children section: "${line}". Child group names should be single words without variables.`;
                     break;
                 }
-                const hostOrChildGroupName = line.split(/\s+/)[0]; 
-                if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrChildGroupName)) {
+                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord)) {
                     errorLine = i + 1;
-                    errorMessage = `Invalid characters in host/child group name: ${hostOrChildGroupName}`;
+                    errorMessage = `Invalid characters in child group name: "${firstWord}" from line "${line}".`;
                     break;
                 }
-                if (isChildrenSection) {
-                    if (line.includes(" ") || line.includes("=")) { // Child group names should not have variables on the same line
-                         errorLine = i + 1;
-                         errorMessage = `Child group definition "${hostOrChildGroupName}" in :children section should not contain variables or spaces.`;
-                         break;
-                    }
-                    groups[currentGroup].push(hostOrChildGroupName); 
-                } else { // Regular group section, so it's a host
-                    groups[currentGroup].push(hostOrChildGroupName);
-                    hostCount++;
+                groups[currentGroup].push(firstWord);
+            } else { // Regular group section (hosts or hosts with inline variables)
+                if (!firstWord) {
+                    errorLine = i + 1;
+                    errorMessage = `Empty host entry in group "${currentGroup}".`;
+                    break;
                 }
+                // Basic character validation for the host part. Ansible allows more complex names (FQDNs, IPs, ranges).
+                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord)) { 
+                    errorLine = i + 1;
+                    errorMessage = `Potentially invalid characters in host name: "${firstWord}" from line "${line}".`;
+                    break;
+                }
+                groups[currentGroup].push(firstWord); // Store the host part
+                hostCount++;
+                // Inline variables (e.g., host1 ansible_port=22) are allowed.
+                // The logic now correctly doesn't error on them here.
             }
-        } else {
-            errorLine = i + 1;
-            errorMessage = `Unexpected line format or host/variable outside a group: ${line}`;
-            break;
+        } else { // Line is not a group header and no current group context (e.g. host before any group)
+             if (i === 0 && (line.includes("=") || /^[a-zA-Z0-9_.-]+$/.test(line.split(/\s+/)[0]))) {
+                // Allow host or host with vars on first line (implies [all] group)
+                // For simplicity, we won't create an explicit 'all' group here but just allow it.
+                // More robust would be to create groups['all'] = [line.split(/\s+/)[0]]
+                hostCount++;
+             } else {
+                errorLine = i + 1;
+                errorMessage = `Unexpected line format or entry outside a group: ${line}`;
+                break;
+             }
         }
     }
 
@@ -558,7 +571,7 @@ export function AnsibleArchitectLayout() {
         const varsGroupCount = Object.keys(groups).filter(g => g.endsWith(":vars")).length;
 
         let summary = `File "${fileName}" (INI) basic structure appears valid. `;
-        summary += `Found ${groupCount} host group(s), ${hostCount} host(s). `;
+        summary += `Found ${groupCount} explicit group(s), ${hostCount} host(s). `;
         if (childrenGroupCount > 0) summary += `${childrenGroupCount} children definition(s). `;
         if (varsGroupCount > 0) summary += `${varsGroupCount} group vars definition(s).`;
 
@@ -617,23 +630,17 @@ export function AnsibleArchitectLayout() {
                     errors.push(`'children' key in group '${path}' must be an object (dictionary).`);
                 } else {
                     for (const childGroupName in groupData.children) {
-                        topLevelGroupCount++; 
+                        // Not incrementing topLevelGroupCount here as it's a child
                         processGroup(childGroupName, groupData.children[childGroupName], `${path}.children.${childGroupName}`);
                     }
                 }
             }
         }
-
+        
         const parsedInventory = inventory as Record<string, any>;
-        if (parsedInventory.all) { // Common top-level group
-            topLevelGroupCount++;
-            processGroup("all", parsedInventory.all, "all");
-        }
         for (const groupName in parsedInventory) {
-            if (groupName !== "all") { // Avoid double processing 'all'
-                topLevelGroupCount++;
-                processGroup(groupName, parsedInventory[groupName], groupName);
-            }
+             topLevelGroupCount++;
+             processGroup(groupName, parsedInventory[groupName], groupName);
         }
         
         if (errors.length > 0) {
@@ -644,7 +651,7 @@ export function AnsibleArchitectLayout() {
             });
         } else {
             let summary = `File "${fileName}" (YAML) syntax is valid. `;
-            summary += `Found ${topLevelGroupCount} group definition(s) (including subgroups) and an estimated ${hostCount} host(s).`;
+            summary += `Found ${topLevelGroupCount} top-level group(s) and an estimated ${hostCount} host(s) within them.`;
             if (warnings.length > 0) {
                  summary += ` Warnings: ${warnings.join("; ")}`;
                  toast({
@@ -696,7 +703,6 @@ export function AnsibleArchitectLayout() {
       const errors: string[] = [];
       const processedHosts = new Set<string>();
 
-      // Check for _meta structure
       if (inventory._meta) {
         if (typeof inventory._meta !== 'object' || inventory._meta === null || Array.isArray(inventory._meta)) {
           errors.push("'_meta' key must be an object.");
@@ -704,7 +710,6 @@ export function AnsibleArchitectLayout() {
           if (typeof inventory._meta.hostvars !== 'object' || inventory._meta.hostvars === null || Array.isArray(inventory._meta.hostvars)) {
             errors.push("'_meta.hostvars' must be an object.");
           } else {
-            // Validate hostvars structure
             for (const hostName in inventory._meta.hostvars) {
               processedHosts.add(hostName);
               if (typeof inventory._meta.hostvars[hostName] !== 'object' || inventory._meta.hostvars[hostName] === null || Array.isArray(inventory._meta.hostvars[hostName])) {
@@ -715,9 +720,8 @@ export function AnsibleArchitectLayout() {
         }
       }
       
-      // Process groups
       for (const groupName in inventory) {
-        if (groupName === "_meta") continue; // Skip _meta, already handled
+        if (groupName === "_meta") continue;
 
         groupCount++;
         const groupData = inventory[groupName];
@@ -749,7 +753,6 @@ export function AnsibleArchitectLayout() {
               if (typeof childGroup !== 'string') {
                 warnings.push(`Child group entry in group '${groupName}' is not a string: ${JSON.stringify(childGroup)}.`);
               }
-              // Could add check if childGroup exists as a top-level key, but that's more complex
             });
           }
         }
@@ -988,7 +991,7 @@ export function AnsibleArchitectLayout() {
           </Button>
           <Separator className="my-2"/>
           <Button onClick={() => inventoryInputRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Load & Validate Inventory
+            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory file
           </Button>
           <input
             type="file"
@@ -1092,3 +1095,4 @@ export function AnsibleArchitectLayout() {
 }
 
     
+
