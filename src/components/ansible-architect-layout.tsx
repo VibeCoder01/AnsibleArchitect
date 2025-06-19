@@ -95,7 +95,7 @@ export function AnsibleArchitectLayout() {
 
   const totalModuleCount = React.useMemo(() => {
     return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
-  }, [moduleGroups]); 
+  }, [moduleGroups]); // Corrected dependency array
 
   const yamlContent = React.useMemo(() => generatePlaybookYaml(tasks), [tasks]);
 
