@@ -301,25 +301,26 @@ export function AnsibleArchitectLayout() {
       </div>
 
       {/* Column 4: Actions (Fixed Width) */}
-      <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col p-3 space-y-2">
-        <h2 className="text-base font-semibold mb-1 text-foreground font-headline flex-shrink-0">Actions</h2>
-        <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-          <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
-        </Button>
-        <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-          <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
-        </Button>
-        <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-          <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
-        </Button>
-        <Separator className="my-2"/>
-        <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
-          <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
-            <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
-          </a>
-        </Button>
-        <Separator className="my-2"/>
-         {/* The module count display was here and has been removed */}
+      <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
+        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
+        <div className="p-3 space-y-2">
+          <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
+          </Button>
+          <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
+          </Button>
+          <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
+          </Button>
+          <Separator className="my-2"/>
+          <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+            <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
+            </a>
+          </Button>
+          <Separator className="my-2"/>
+        </div>
       </div>
     </div>
   );
