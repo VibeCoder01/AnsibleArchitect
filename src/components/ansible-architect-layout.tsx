@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy, X, FilePlus, Save, Edit2 } from "lucide-react";
+import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy, X, FilePlus, Edit2 } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -25,10 +25,10 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
   const segments: YamlSegment[] = [];
   const playbookStructure: AnsiblePlaybookYAML = [
     {
-      id: "play1", // This could be dynamic if supporting multiple plays per file
+      id: "play1", 
       name: playbookName,
-      hosts: "all", // This could also be part of PlaybookState
-      become: true,  // This could also be part of PlaybookState
+      hosts: "all", 
+      become: true,  
       tasks: tasks,
     },
   ];
@@ -101,8 +101,8 @@ export function AnsibleArchitectLayout() {
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
-  const [col1Width, setCol1Width] = React.useState(350);
-  const [col2Width, setCol2Width] = React.useState(350);
+  const [col1Width, setCol1Width] = React.useState(350); // Module Palette width
+  const [col2Width, setCol2Width] = React.useState(350); // Task List width (within tab)
 
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
   const [startX, setStartX] = React.useState(0);
@@ -119,7 +119,6 @@ export function AnsibleArchitectLayout() {
   const [renamingPlaybookId, setRenamingPlaybookId] = React.useState<string | null>(null);
   const [tempPlaybookName, setTempPlaybookName] = React.useState("");
 
-  // Load playbooks from localStorage on initial mount
   React.useEffect(() => {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
     const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
@@ -135,13 +134,11 @@ export function AnsibleArchitectLayout() {
         return;
       }
     }
-    // If no stored playbooks or empty, create a default one
     const defaultPlaybook = createNewPlaybook("Default Playbook");
     setPlaybooks([defaultPlaybook]);
     setActivePlaybookId(defaultPlaybook.id);
   }, []);
 
-  // Save playbooks to localStorage whenever they change
   React.useEffect(() => {
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
@@ -155,9 +152,9 @@ export function AnsibleArchitectLayout() {
     return playbooks.find(p => p.id === activePlaybookId);
   }, [playbooks, activePlaybookId]);
 
-  const updateActivePlaybook = React.useCallback((updatedPlaybook: Partial<PlaybookState>) => {
+  const updateActivePlaybookState = React.useCallback((updatedFields: Partial<PlaybookState>) => {
     setPlaybooks(prev =>
-      prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedPlaybook } : p))
+      prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedFields } : p))
     );
   }, [activePlaybookId]);
 
@@ -171,7 +168,7 @@ export function AnsibleArchitectLayout() {
   const fullYamlContent = React.useMemo(() => yamlSegments.map(segment => segment.content).join(''), [yamlSegments]);
 
   const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
-    if (!activePlaybookId) return;
+    if (!activePlaybook) return;
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -185,11 +182,7 @@ export function AnsibleArchitectLayout() {
       newTask = taskDetails as AnsibleTask;
       if (!newTask.id) newTask.id = crypto.randomUUID();
     }
-    setPlaybooks(prevPlaybooks =>
-      prevPlaybooks.map(p =>
-        p.id === activePlaybookId ? { ...p, tasks: [...p.tasks, newTask] } : p
-      )
-    );
+    updateActivePlaybookState({ tasks: [...activePlaybook.tasks, newTask] });
   };
 
   const handleAddTaskFromPalette = (moduleDef: AnsibleModuleDefinition) => {
@@ -197,40 +190,25 @@ export function AnsibleArchitectLayout() {
   };
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
-    if (!activePlaybookId) return;
-    setPlaybooks(prevPlaybooks =>
-      prevPlaybooks.map(p =>
-        p.id === activePlaybookId
-          ? { ...p, tasks: p.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)) }
-          : p
-      )
-    );
+    if (!activePlaybook) return;
+    updateActivePlaybookState({
+      tasks: activePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
+    });
   };
 
   const deleteTaskInActivePlaybook = (taskId: string) => {
-    if (!activePlaybookId) return;
-    setPlaybooks(prevPlaybooks =>
-      prevPlaybooks.map(p =>
-        p.id === activePlaybookId
-          ? { ...p, tasks: p.tasks.filter(task => task.id !== taskId) }
-          : p
-      )
-    );
+    if (!activePlaybook) return;
+    updateActivePlaybookState({
+      tasks: activePlaybook.tasks.filter(task => task.id !== taskId),
+    });
   };
 
   const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
-    if (!activePlaybookId) return;
-    setPlaybooks(prevPlaybooks =>
-      prevPlaybooks.map(p => {
-        if (p.id === activePlaybookId) {
-          const newTasks = [...p.tasks];
-          const [draggedItem] = newTasks.splice(dragIndex, 1);
-          newTasks.splice(hoverIndex, 0, draggedItem);
-          return { ...p, tasks: newTasks };
-        }
-        return p;
-      })
-    );
+    if (!activePlaybook) return;
+    const newTasks = [...activePlaybook.tasks];
+    const [draggedItem] = newTasks.splice(dragIndex, 1);
+    newTasks.splice(hoverIndex, 0, draggedItem);
+    updateActivePlaybookState({ tasks: newTasks });
   };
 
   const handleExportYaml = () => {
@@ -399,7 +377,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleClosePlaybook = (playbookIdToClose: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent tab activation when clicking close
+    event.stopPropagation(); 
     setPlaybooks(prev => {
       const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
       if (remainingPlaybooks.length === 0) {
@@ -436,110 +414,114 @@ export function AnsibleArchitectLayout() {
   };
 
   if (!activePlaybook) {
-     // This can happen briefly during initialization or if all playbooks are closed and a new one is being created.
      return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
   }
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
-      {/* Container for the first 3 resizable columns */}
-      <div className="flex flex-1 min-w-0">
-        {/* Column 1: Module Palette */}
-        <div
-          style={{ flex: `0 0 ${col1Width}px` }}
-          className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
-        >
-          <div className="p-3 flex items-center border-b flex-shrink-0">
-            <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
-            <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
-          </div>
-          <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+      {/* Column 1: Module Palette */}
+      <div
+        style={{ flex: `0 0 ${col1Width}px` }}
+        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+      >
+        <div className="p-3 flex items-center border-b flex-shrink-0">
+          <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
+          <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
+        </div>
+        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+      </div>
+
+      <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
+
+      {/* Tabbed Area for Playbook Tasks and YAML - Takes remaining horizontal space */}
+      <Tabs 
+        value={activePlaybookId || ""} 
+        onValueChange={setActivePlaybookId} 
+        className="flex flex-col flex-1 min-w-0" // flex-1 makes it take remaining horizontal space
+      >
+        <div className="flex items-center border-b bg-card rounded-t-lg">
+          <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
+            {playbooks.map(p => (
+              <TabsTrigger
+                key={p.id}
+                value={p.id}
+                className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
+              >
+                <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
+                  onClick={(e) => openRenameModal(p.id, p.name, e)}
+                  aria-label="Rename playbook"
+                >
+                  <Edit2 className="w-3 h-3" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
+                  onClick={(e) => handleClosePlaybook(p.id, e)}
+                  aria-label="Close playbook"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
+            <FilePlus className="w-4 h-4" />
+          </Button>
         </div>
 
-        <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
-
-        {/* Tabbed Area for Playbook Tasks and YAML */}
-        <Tabs value={activePlaybookId || ""} onValueChange={setActivePlaybookId} className="flex flex-col min-w-0" style={{ flex: `0 0 calc(${col2Width}px + ${MIN_COLUMN_WIDTH}px + 0.5rem)` }}> {/* Width of 2nd col + 3rd col + resizer */}
-          <div className="flex items-center border-b bg-card rounded-t-lg">
-            <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
-              {playbooks.map(p => (
-                <TabsTrigger
-                  key={p.id}
-                  value={p.id}
-                  className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
-                >
-                  <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                    onClick={(e) => openRenameModal(p.id, p.name, e)}
-                    aria-label="Rename playbook"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                    onClick={(e) => handleClosePlaybook(p.id, e)}
-                    aria-label="Close playbook"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
-              <FilePlus className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {playbooks.map(p => (
-            <TabsContent key={p.id} value={p.id} className="flex-grow flex min-w-0 mt-0 rounded-b-lg overflow-hidden">
-              {/* Column 2: Playbook Tasks */}
-              <div
-                style={{ flex: `0 0 ${col2Width}px` }}
-                onDrop={handleDropOnTaskList}
-                onDragOver={handleDragOverTaskList}
-                onDragLeave={handleDragLeaveTaskList}
-                className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
-                aria-dropeffect="copy"
-              >
-                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                <div className="flex-grow overflow-hidden p-3">
-                  <TaskList
-                    tasks={p.tasks}
-                    onUpdateTask={updateTaskInActivePlaybook}
-                    onDeleteTask={deleteTaskInActivePlaybook}
-                    onMoveTask={moveTaskInActivePlaybook}
-                    definedRoles={definedRoles}
-                    hoveredTaskId={hoveredTaskId}
-                    onSetHoveredTaskId={setHoveredTaskId}
-                  />
-                </div>
+        {playbooks.map(p => (
+          <TabsContent 
+            key={p.id} 
+            value={p.id} 
+            className="flex-grow flex min-w-0 mt-0 rounded-b-lg overflow-hidden" // flex-grow for height, flex for horizontal children
+          >
+            {/* Column 2: Playbook Tasks (within tab) */}
+            <div
+              style={{ flex: `0 0 ${col2Width}px` }}
+              onDrop={handleDropOnTaskList}
+              onDragOver={handleDragOverTaskList}
+              onDragLeave={handleDragLeaveTaskList}
+              className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+              aria-dropeffect="copy"
+            >
+              <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+              <div className="flex-grow overflow-hidden p-3"> {/* flex-grow to make TaskList scroll area fill space */}
+                <TaskList
+                  tasks={p.tasks}
+                  onUpdateTask={updateTaskInActivePlaybook}
+                  onDeleteTask={deleteTaskInActivePlaybook}
+                  onMoveTask={moveTaskInActivePlaybook}
+                  definedRoles={definedRoles}
+                  hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                  onSetHoveredTaskId={setHoveredTaskId}
+                />
               </div>
+            </div>
 
-              <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+            <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
-              {/* Column 3: Generated YAML */}
-              <div
-                style={{ flex: '1 1 0%' }} // This column will take remaining space from the Tab's allocated width
-                className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
-              >
-                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-                <div className="flex-grow overflow-hidden">
-                  <YamlDisplay 
-                    yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)} 
-                    hoveredTaskId={hoveredTaskId}
-                    onSetHoveredSegmentId={setHoveredTaskId}
-                  />
-                </div>
+            {/* Column 3: Generated YAML (within tab) */}
+            <div
+              style={{ flex: '1 1 0%' }} // Takes remaining width in tab
+              className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+            >
+              <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
+              <div className="flex-grow overflow-hidden"> {/* flex-grow to make YamlDisplay scroll area fill space */}
+                <YamlDisplay 
+                  yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)} 
+                  hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                  onSetHoveredSegmentId={setHoveredTaskId}
+                />
               </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
 
       {/* Column 4: Actions (Fixed Width) */}
       <div className="w-64 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
@@ -568,7 +550,7 @@ export function AnsibleArchitectLayout() {
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
             </a>
           </Button>
-          <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+           <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
             <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
             </a>
@@ -653,3 +635,4 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+    
