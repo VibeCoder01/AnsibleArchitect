@@ -120,7 +120,7 @@ export function AnsibleArchitectLayout() {
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
       {/* Column 1: Module Palette */}
-      <div className="flex-1 min-w-0 max-w-[320px] bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
         <div className="p-3 flex items-center border-b flex-shrink-0">
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
