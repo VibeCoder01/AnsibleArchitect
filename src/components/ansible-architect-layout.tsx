@@ -179,16 +179,16 @@ export function AnsibleArchitectLayout() {
   }, [playbooks, activePlaybookId, isClientReady]);
 
   const getActivePlaybook = React.useCallback(() => {
-    if (!isClientReady) return undefined;
+    // No longer need to check isClientReady here as Tabs won't render until it's true
     return playbooks.find(p => p.id === activePlaybookId);
-  }, [playbooks, activePlaybookId, isClientReady]);
+  }, [playbooks, activePlaybookId]);
 
   const updateActivePlaybookState = React.useCallback((updatedFields: Partial<PlaybookState>) => {
-    if (!isClientReady) return;
+    // No longer need to check isClientReady here
     setPlaybooks(prev =>
       prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedFields } : p))
     );
-  }, [activePlaybookId, isClientReady]);
+  }, [activePlaybookId]);
 
 
   const activePlaybook = getActivePlaybook();
@@ -201,7 +201,7 @@ export function AnsibleArchitectLayout() {
 
   const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook || !isClientReady) return;
+    if (!currentActivePlaybook) return; // No isClientReady check needed
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -224,7 +224,7 @@ export function AnsibleArchitectLayout() {
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook || !isClientReady) return;
+    if (!currentActivePlaybook) return; // No isClientReady check
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
@@ -232,7 +232,7 @@ export function AnsibleArchitectLayout() {
 
   const deleteTaskInActivePlaybook = (taskId: string) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook || !isClientReady) return;
+    if (!currentActivePlaybook) return; // No isClientReady check
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.filter(task => task.id !== taskId),
     });
@@ -240,7 +240,7 @@ export function AnsibleArchitectLayout() {
 
   const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook || !isClientReady) return;
+    if (!currentActivePlaybook) return; // No isClientReady check
     const newTasks = [...currentActivePlaybook.tasks];
     const [draggedItem] = newTasks.splice(dragIndex, 1);
     newTasks.splice(hoverIndex, 0, draggedItem);
@@ -248,7 +248,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleExportYaml = () => {
-    if (!isClientReady || !fullYamlContent) {
+    if (!fullYamlContent) { // No isClientReady check
       toast({ title: "Error", description: "No YAML content to export.", variant: "destructive" });
       return;
     }
@@ -265,7 +265,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleCopyYaml = async () => {
-    if (!isClientReady || !fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") {
+    if (!fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") { // No isClientReady check
       toast({ title: "Nothing to Copy", description: "Generated YAML is empty.", variant: "default" });
       return;
     }
@@ -278,43 +278,118 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleValidatePlaybookFile = () => {
+  const handleValidatePlaybook = () => {
      playbookFileRef.current?.click();
   };
 
   const handlePlaybookFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      if (content) {
-        try {
-          yaml.load(content);
-          toast({
-            title: "Playbook Validation Successful",
-            description: `YAML syntax for "${file.name}" is valid.`,
-            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+      if (!content) {
+        toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
+        return;
+      }
+
+      try {
+        const playbook = yaml.load(content);
+        let validationMessage = `YAML syntax for "${file.name}" is valid.`;
+        let hasSemanticIssues = false;
+        const semanticErrors: string[] = [];
+        const semanticWarnings: string[] = [];
+
+        if (!Array.isArray(playbook)) {
+          semanticErrors.push("Playbook must be a list of plays (e.g., starts with '-').");
+          hasSemanticIssues = true;
+        } else {
+          (playbook as any[]).forEach((play, playIndex) => {
+            if (typeof play !== 'object' || play === null) {
+              semanticErrors.push(`Play ${playIndex + 1} is not a valid object.`);
+              hasSemanticIssues = true;
+              return; // Skip further checks for this malformed play
+            }
+
+            if (!play.hosts || typeof play.hosts !== 'string') {
+              semanticErrors.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") is missing a 'hosts' key or its value is not a string.`);
+              hasSemanticIssues = true;
+            }
+            if (play.name && typeof play.name !== 'string') {
+              semanticWarnings.push(`Play ${playIndex + 1} has a 'name' key, but its value is not a string.`);
+            }
+            if (play.become !== undefined && typeof play.become !== 'boolean') {
+              semanticWarnings.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") has a 'become' key, but its value is not a boolean (true/false).`);
+            }
+
+            if (play.tasks) {
+              if (!Array.isArray(play.tasks)) {
+                semanticErrors.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") has a 'tasks' key, but its value is not a list.`);
+                hasSemanticIssues = true;
+              } else {
+                (play.tasks as any[]).forEach((task, taskIndex) => {
+                  if (typeof task !== 'object' || task === null) {
+                    semanticErrors.push(`Task ${taskIndex + 1} in Play ${playIndex + 1} is not a valid object.`);
+                    hasSemanticIssues = true;
+                    return; // Skip further checks for this malformed task
+                  }
+                  
+                  const taskKeys = Object.keys(task);
+                  const knownTaskKeywords = ['name', 'when', 'loop', 'register', 'tags', 'become', 'vars', 'include_role', 'import_role', 'block', 'rescue', 'always', 'delegate_to', 'run_once', 'ignore_errors', 'changed_when', 'failed_when', 'notify', 'listen', 'environment', 'args', 'no_log', 'loop_control', 'until', 'retries', 'delay', 'async', 'poll', 'check_mode', 'diff', 'debugger', 'collections', 'module_defaults'];
+                  const moduleKeys = taskKeys.filter(k => !knownTaskKeywords.includes(k));
+
+                  if (moduleKeys.length === 0 && !task.block) { // block is a special case that contains tasks
+                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} does not seem to call a module or include a block.`);
+                  } else if (moduleKeys.length === 1) {
+                    const moduleKey = moduleKeys[0];
+                    const moduleParams = task[moduleKey];
+                    if (typeof moduleParams !== 'object' && typeof moduleParams !== 'string' && moduleParams !== null) {
+                       semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} module '${moduleKey}' has parameters that are not an object or string.`);
+                    }
+                  } else if (moduleKeys.length > 1) {
+                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} appears to call multiple modules: ${moduleKeys.join(', ')}.`);
+                  }
+                });
+              }
+            }
           });
-        } catch (error) {
-          let errorMessage = "Invalid YAML syntax.";
-          if (error instanceof yaml.YAMLException) {
-            errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`;
-          } else if (error instanceof Error) {
-            errorMessage = error.message;
-          }
-          toast({
-            title: "Playbook Validation Failed",
-            description: `Error in "${file.name}" (YAML): ${errorMessage}. See console for details.`,
+        }
+        
+        if (hasSemanticIssues) {
+           toast({
+            title: "Playbook Validation Failed (Semantic)",
+            description: `Error in "${file.name}": ${semanticErrors.join("; ")}. ${semanticWarnings.join("; ")}`,
             variant: "destructive",
           });
-          console.error(`Playbook YAML Validation Error (${file.name}):`, error);
+        } else if (semanticWarnings.length > 0) {
+          toast({
+            title: "Playbook Validation Successful (with warnings)",
+            description: `${validationMessage} Warnings: ${semanticWarnings.join("; ")}`,
+            variant: "default",
+            className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
+          });
+        } else {
+          toast({
+            title: "Playbook Validation Successful",
+            description: `${validationMessage} Basic playbook structure appears valid.`,
+            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+          });
         }
-      } else {
-        toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
+
+      } catch (error) {
+        let errorMessage = "Invalid YAML syntax.";
+        if (error instanceof yaml.YAMLException) {
+          errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        toast({
+          title: "Playbook Validation Failed (Syntax)",
+          description: `Error in "${file.name}" (YAML): ${errorMessage}. See console for details.`,
+          variant: "destructive",
+        });
+        console.error(`Playbook YAML Validation Error (${file.name}):`, error);
       }
     };
     reader.onerror = () => {
@@ -330,7 +405,7 @@ export function AnsibleArchitectLayout() {
   const handleDropOnTaskList = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDraggingOverTaskList(false);
-    if (!isClientReady || !activePlaybookId) {
+    if (!activePlaybookId) { // No isClientReady check
       toast({ title: "Error", description: "No active playbook to add tasks to.", variant: "destructive" });
       return;
     }
@@ -430,7 +505,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleNewPlaybook = () => {
-    if (!isClientReady) return;
+    // No isClientReady check
     const newPBook = createNewPlaybook();
     setPlaybooks(prev => [...prev, newPBook]);
     setActivePlaybookId(newPBook.id);
@@ -439,7 +514,7 @@ export function AnsibleArchitectLayout() {
 
   const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
-    if (!isClientReady) return;
+    // No isClientReady check
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
 
     setPlaybooks(prev => {
@@ -469,14 +544,14 @@ export function AnsibleArchitectLayout() {
 
   const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
-    if (!isClientReady) return;
+    // No isClientReady check
     setRenamingPlaybookId(playbookId);
     setTempPlaybookName(currentName);
     setIsRenameModalOpen(true);
   };
 
   const handleRenamePlaybook = () => {
-    if (!isClientReady || !renamingPlaybookId || tempPlaybookName.trim() === "") {
+    if (!renamingPlaybookId || tempPlaybookName.trim() === "") { // No isClientReady check
       toast({title: "Error", description: "Playbook name cannot be empty.", variant: "destructive"});
       return;
     }
@@ -518,32 +593,30 @@ export function AnsibleArchitectLayout() {
             if (!groups[currentGroup]) groups[currentGroup] = [];
 
         } else if (currentGroup) {
-            const hasEquals = line.includes("=");
             const parts = line.split(/\s+/);
             const firstWord = parts[0];
 
             if (isVarsSection) {
-                if (!hasEquals) {
+                if (!line.includes("=")) {
                     errorLine = i + 1;
-                    errorMessage = `Non-variable line "${line}" found inside a :vars section. Variable lines must be in 'key=value' format.`;
+                    errorMessage = `Non-variable line "${line}" found in :vars section "${currentGroup}". Variable lines must be in 'key=value' format.`;
                     break;
                 }
-                 // Basic check for key=value format
                 if (!/^\s*\S+\s*=\s*\S+/.test(line.replace(/\s*#.*$/, ""))) { 
                     errorLine = i + 1;
-                    errorMessage = `Malformed variable definition: "${line}" in :vars section. Expected 'key=value'.`;
+                    errorMessage = `Malformed variable definition: "${line}" in :vars section "${currentGroup}". Expected 'key=value'.`;
                     break;
                 }
                 groups[currentGroup].push(line);
             } else if (isChildrenSection) {
-                if (hasEquals || line.includes(" ")) { 
+                if (line.includes("=") || line.includes(" ")) { 
                     errorLine = i + 1;
-                    errorMessage = `Invalid entry in :children section: "${line}". Child group names should be single words without variables.`;
+                    errorMessage = `Invalid entry in :children section "${currentGroup}": "${line}". Child group names should be single words without variables.`;
                     break;
                 }
                 if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord)) {
                     errorLine = i + 1;
-                    errorMessage = `Invalid characters in child group name: "${firstWord}" from line "${line}".`;
+                    errorMessage = `Invalid characters in child group name: "${firstWord}" from line "${line}" in section "${currentGroup}".`;
                     break;
                 }
                 groups[currentGroup].push(firstWord);
@@ -553,16 +626,22 @@ export function AnsibleArchitectLayout() {
                     errorMessage = `Empty host entry in group "${currentGroup}".`;
                     break;
                 }
-                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord.split('=')[0].trim())) { 
+                // Allow hosts with inline variables (e.g., host1 ansible_port=2222)
+                if (!/^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) { 
                     errorLine = i + 1;
-                    errorMessage = `Potentially invalid characters in host name: "${firstWord.split('=')[0].trim()}" from line "${line}".`;
+                    errorMessage = `Potentially invalid characters in host name: "${firstWord.split('=')[0].trim()}" from line "${line}" in group "${currentGroup}".`;
                     break;
                 }
                 groups[currentGroup].push(firstWord); 
                 hostCount++;
             }
         } else { 
-             if (i === 0 && (line.includes("=") || /^[a-zA-Z0-9_.-]+$/.test(line.split(/\s+/)[0]))) {
+             // Ungrouped hosts (can appear at the beginning or between groups)
+             const parts = line.split(/\s+/);
+             const firstWord = parts[0];
+             if (firstWord && /^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) {
+                // Treat as ungrouped host. For simplicity, we don't store them in 'groups' here
+                // but we count them.
                 hostCount++;
              } else {
                 errorLine = i + 1;
@@ -584,7 +663,7 @@ export function AnsibleArchitectLayout() {
         const varsGroupCount = Object.keys(groups).filter(g => g.endsWith(":vars")).length;
 
         let summary = `File "${fileName}" (INI) basic structure appears valid. `;
-        summary += `Found ${groupCount} explicit group(s), ${hostCount} host(s). `;
+        summary += `Found ${groupCount} explicit group(s), ${hostCount} host(s) (including ungrouped). `;
         if (childrenGroupCount > 0) summary += `${childrenGroupCount} children definition(s). `;
         if (varsGroupCount > 0) summary += `${varsGroupCount} group vars definition(s).`;
 
@@ -618,6 +697,17 @@ export function AnsibleArchitectLayout() {
                 errors.push(`Group '${path}' is not a valid object.`);
                 return;
             }
+            
+            if (groupName === 'all' && groupData.hosts && typeof groupData.hosts === 'object' && groupData.hosts !== null) {
+                 // Special handling for 'all' group if it lists hosts directly
+                hostCount += Object.keys(groupData.hosts).length;
+                for (const hostName in groupData.hosts) {
+                     if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
+                       warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
+                    }
+                }
+            }
+
 
             if (groupData.hosts) {
                 if (typeof groupData.hosts !== 'object' || groupData.hosts === null || Array.isArray(groupData.hosts)) {
@@ -651,6 +741,9 @@ export function AnsibleArchitectLayout() {
         
         const parsedInventory = inventory as Record<string, any>;
         for (const groupName in parsedInventory) {
+             if (groupName.startsWith('_') && groupName !== '_meta') { // Ignore private keys unless it's _meta
+                continue;
+             }
              topLevelGroupCount++;
              processGroup(groupName, parsedInventory[groupName], groupName);
         }
@@ -996,7 +1089,7 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
           </Button>
           <Separator className="my-2"/>
-          <Button onClick={handleValidatePlaybookFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+          <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
           </Button>
           <input
@@ -1117,3 +1210,5 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
+      
