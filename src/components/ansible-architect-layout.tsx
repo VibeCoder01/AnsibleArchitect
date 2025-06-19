@@ -15,7 +15,7 @@ import { AnsibleArchitectIcon } from "@/components/icons/ansible-architect-icon"
 import { Separator } from "@/components/ui/separator";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
 import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "./ui/tooltip"; 
 import { defaultModules } from "@/config/ansible-modules"; 
 
 const collapsedModuleIds: string[] = ['debug', 'apt', 'service', 'copy', 'file', 'user', 'command', 'git'];
@@ -81,7 +81,7 @@ export function AnsibleArchitectLayout() {
         </SidebarFooter>
       </Sidebar>
       
-      <SidebarInset className="flex-1 overflow-auto ml-3"> {/* Increased margin for better separation */}
+      <SidebarInset className="flex-1 overflow-auto pl-4 bg-background">
         <PlaybookEditor ref={playbookEditorRef} />
       </SidebarInset>
     </div>

@@ -34,7 +34,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
       if (!newTask.id) newTask.id = crypto.randomUUID(); 
     }
     setTasks((prevTasks) => [...prevTasks, newTask]);
-    toast({ title: "Task Added", description: `"${newTask.name}" added to playbook.` });
+    // Removed toast for adding task to keep output clean, can be re-added if needed.
   };
   
   React.useImperativeHandle(ref, () => ({
@@ -47,12 +47,12 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
     setTasks((prevTasks) =>
       prevTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
     );
-    toast({ title: "Task Updated", description: `"${updatedTask.name}" has been updated.` });
+    // Removed toast for updating task
   };
 
   const deleteTask = (taskId: string) => {
     setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-    toast({ title: "Task Deleted", description: "Task removed from playbook." });
+    // Removed toast for deleting task
   };
   
   const moveTask = (dragIndex: number, hoverIndex: number) => {
@@ -121,9 +121,9 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   };
   
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-transparent">
       {/* Header for buttons */}
-      <div className="flex items-center justify-end p-3 border-b bg-card shadow-sm flex-shrink-0">
+      <div className="flex items-center justify-end pr-4 py-3 border-b bg-card shadow-sm flex-shrink-0">
         <div className="flex items-center space-x-2">
           <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="text-xs px-2 py-1">
             <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
@@ -135,7 +135,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
       </div>
 
       {/* Main content area: Two columns */}
-      <div className="flex flex-1 overflow-hidden p-3 space-x-3 md:space-x-4"> {/* Increased space-x for padding between columns and overall p-3 */}
+      <div className="flex flex-1 overflow-hidden py-3 pr-4 space-x-4">
         {/* Left Column: Design/Task List */}
         <div 
           ref={dropZoneRef}
@@ -150,7 +150,7 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         </div>
 
         {/* Right Column: YAML Display */}
-        <div className="flex-1 flex flex-col overflow-hidden border rounded-lg bg-card shadow-sm">
+        <div className="flex-1 flex flex-col overflow-hidden border rounded-lg bg-card shadow-sm p-0">
           <h2 className="text-base font-semibold text-foreground font-headline flex-shrink-0 p-3 border-b">Generated YAML</h2>
           <div className="flex-grow overflow-hidden">
              <YamlDisplay tasks={tasks} />
