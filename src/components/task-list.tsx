@@ -6,7 +6,13 @@ import type { AnsibleTask } from "@/types/ansible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, PlusCircle, X, UserCog, ListTree, Shell, GitFork, CalendarClock, DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck } from "lucide-react";
+import { 
+  Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, UserCog, ListTree, Shell, 
+  GitFork, CalendarClock, DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck, PlusCircle, X,
+  FilePlus, FolderOpen, FileSearch, Replace, FileCog as FileCogIcon, FileSymlink, Archive as ArchiveIcon, PackagePlus, Box, 
+  Users2, Server, Power, Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle, 
+  CheckCircle2, Hourglass, Files, Search, Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, Code
+} from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -37,7 +43,41 @@ const moduleIcons: Record<string, React.ElementType> = {
   lineinfile: FileEdit,
   blockinfile: TextSelect,
   firewalld: ShieldCheck,
-  default: PuzzleIconInternal,
+  yum: Package,
+  dnf: Package,
+  pip: Box,
+  gem: Box,
+  npm: Box,
+  homebrew: PackagePlus,
+  group: Users2,
+  hostname: Cpu,
+  reboot: Power,
+  systemd: Server,
+  mount: HardDrive,
+  selinux: ShieldAlert,
+  ufw: Shield,
+  iptables: Heater,
+  nmcli: NetworkIcon,
+  shell: TerminalSquare, // Already had Shell, using TerminalSquare for consistency
+  script: FileCode,
+  archive: ArchiveIcon,
+  set_fact: SlidersHorizontal,
+  fail: AlertCircle,
+  assert: CheckCircle2,
+  wait_for: Hourglass,
+  assemble: Files,
+  stat: FileSearch,
+  find: Search,
+  replace: Replace,
+  ini_file: FileCogIcon,
+  xml: Code,
+  uri: Cloud,
+  slurp: FilePlus,
+  setup: Info,
+  include_role: ListChecks,
+  add_host: PackagePlus, // Re-using for add_host
+  pause: Puzzle,
+  default: Puzzle, 
 };
 
 interface EditableParameter {
@@ -117,7 +157,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
     <ScrollArea className="h-full p-0.5 flex-grow">
       {tasks.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
-          <PuzzleIconInternal className="w-12 h-12 mx-auto mb-3 opacity-60" />
+          <Puzzle className="w-12 h-12 mx-auto mb-3 opacity-60" />
           <p className="font-medium text-sm">Your playbook is empty.</p>
           <p className="text-xs">Drag modules here to add tasks.</p>
         </div>
@@ -239,12 +279,4 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       )}
     </ScrollArea>
   );
-}
-
-function PuzzleIconInternal(props: React.SVGProps<SVGSVGElement>) { 
-  return (
-    <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24" {...props}>
-      <path d="M19.439 7.561c-1.172-1.172-2.756-1.81-4.439-1.81s-3.267.638-4.439 1.81L7.56 10.561M16.561 19.439c1.172-1.172 1.81-2.756 1.81-4.439s-.638-3.267-1.81-4.439L10.56 7.561M4.561 16.561A6.25 6.25 0 0010.05 19.5a6.25 6.25 0 005.488-8.488M19.5 10.05a6.25 6.25 0 00-8.488-5.488"/>
-    </svg>
-  )
 }

@@ -2,12 +2,18 @@
 "use client";
 
 import * as React from "react";
-import type { AnsibleModuleDefinition } from "@/types/ansible";
+import type { AnsibleModuleDefinition, AnsibleModuleGroup } from "@/types/ansible";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
-import { defaultModules } from "@/config/ansible-modules"; // Import from shared config
+import { moduleGroups } from "@/config/ansible-modules";
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface ModulePaletteProps {
   onAddTaskFromPalette: (module: AnsibleModuleDefinition) => void;
@@ -19,51 +25,69 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
     event.dataTransfer.effectAllowed = "copy";
   };
 
+  const defaultOpenGroups = ["File Management", "Package Management", "System & Services"];
+
   return (
     <Card className="h-full flex flex-col shadow-md border-0 rounded-none">
       <CardHeader className="p-3 border-b flex-shrink-0">
         <CardTitle className="text-base font-headline">Available Modules</CardTitle>
       </CardHeader>
       <CardContent className="p-0 flex-grow overflow-hidden">
-        <ScrollArea className="h-full p-3">
-          <div className="space-y-2">
-            {defaultModules.map((module) => {
-              const IconComponent = module.icon || PuzzleIcon; // Fallback Icon
+        <ScrollArea className="h-full">
+          <Accordion type="multiple" defaultValue={defaultOpenGroups} className="w-full p-3 space-y-1">
+            {moduleGroups.map((group) => {
+              const GroupIcon = group.icon || PuzzleIcon;
               return (
-                <div
-                  key={module.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, module)}
-                  className="p-3 border rounded-md bg-card hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing flex items-center justify-between group"
-                  aria-label={`Draggable module: ${module.name}`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <IconComponent className="w-5 h-5 text-primary flex-shrink-0" />
-                    <div>
-                      <h4 className="font-semibold text-sm text-card-foreground">{module.name}</h4>
-                      <p className="text-xs text-muted-foreground leading-tight">{module.description}</p>
+                <AccordionItem value={group.name} key={group.name} className="border bg-card shadow-sm rounded-md overflow-hidden">
+                  <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <GroupIcon className="w-4 h-4 text-primary" />
+                      <span className="font-medium text-card-foreground">{group.name}</span>
                     </div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7"
-                    onClick={() => onAddTaskFromPalette(module)}
-                    aria-label={`Add ${module.name} module`}
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                  </Button>
-                </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="bg-background/20">
+                    <div className="space-y-2 p-3 border-t">
+                      {group.modules.map((module) => {
+                        const IconComponent = module.icon || PuzzleIcon; // Fallback Icon
+                        return (
+                          <div
+                            key={module.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, module)}
+                            className="p-2.5 border rounded-md bg-card hover:shadow-lg transition-shadow cursor-grab active:cursor-grabbing flex items-center justify-between group"
+                            aria-label={`Draggable module: ${module.name}`}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <IconComponent className="w-5 h-5 text-primary flex-shrink-0" />
+                              <div>
+                                <h4 className="font-semibold text-sm text-card-foreground">{module.name}</h4>
+                                <p className="text-xs text-muted-foreground leading-tight">{module.description}</p>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7"
+                              onClick={() => onAddTaskFromPalette(module)}
+                              aria-label={`Add ${module.name} module`}
+                            >
+                              <PlusCircle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
               );
             })}
-          </div>
+          </Accordion>
         </ScrollArea>
       </CardContent>
     </Card>
   );
 }
 
-// Fallback Icon for ModulePalette - kept local as it's specific here
 function PuzzleIcon(props: React.SVGProps<SVGSVGElement>) { 
   return (
     <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24" {...props}>

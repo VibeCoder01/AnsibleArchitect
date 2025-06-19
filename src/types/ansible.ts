@@ -1,3 +1,4 @@
+
 export interface AnsibleModuleDefinition {
   id: string;
   name: string; // e.g., "APT Package Management"
@@ -5,6 +6,12 @@ export interface AnsibleModuleDefinition {
   description: string;
   icon?: React.ElementType; 
   defaultParameters?: Record<string, any>;
+}
+
+export interface AnsibleModuleGroup {
+  name: string;
+  icon?: React.ElementType; // Optional icon for the group
+  modules: AnsibleModuleDefinition[];
 }
 
 export interface AnsibleTask {
