@@ -8,7 +8,7 @@ import {
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap, TestTube2, MessageSquare, Eye,
   Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig,
-  Shapes, FileLock2, Layers3
+  Shapes, FileLock2, Layers3, Camera, Tags
 } from "lucide-react";
 
 const fileManagementModules: AnsibleModuleDefinition[] = [
@@ -314,6 +314,107 @@ const proxmoxModules: AnsibleModuleDefinition[] = [
   },
 ];
 
+const vmwareModules: AnsibleModuleDefinition[] = [
+  {
+    id: 'vmware_guest',
+    module: 'community.vmware.vmware_guest',
+    name: 'VMware Guest Management',
+    icon: Server,
+    description: 'Manage VMware vSphere virtual machines (power state, configuration, etc.).',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      datacenter: 'Datacenter1',
+      name: 'my-vm',
+      state: 'present', // e.g., present, poweredon, poweredoff, restarted
+      guest_id: 'centos7_64Guest',
+      disk: [{ size_gb: 40, type: 'thin', datastore: 'datastore1' }],
+      networks: [{ name: 'VM Network', ip: '192.168.1.100', netmask: '255.255.255.0', gateway: '192.168.1.1' }],
+      validate_certs: 'no',
+    },
+  },
+  {
+    id: 'vmware_guest_info',
+    module: 'community.vmware.vmware_guest_info',
+    name: 'VMware Guest Info',
+    icon: Info,
+    description: 'Gather information about VMware vSphere virtual machines.',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      validate_certs: 'no',
+      // name: 'specific-vm-name', // Optional: to get info for a specific VM
+    },
+  },
+  {
+    id: 'vmware_guest_snapshot',
+    module: 'community.vmware.vmware_guest_snapshot',
+    name: 'VMware Guest Snapshot',
+    icon: Camera,
+    description: 'Manage snapshots of VMware vSphere virtual machines.',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      datacenter: 'Datacenter1',
+      uuid: 'vm-uuid-here', // or name: 'vm-name-here'
+      snapshot_name: 'my_snapshot_before_update',
+      state: 'present', // e.g., present, absent, revert
+      validate_certs: 'no',
+    },
+  },
+  {
+    id: 'vmware_datacenter',
+    module: 'community.vmware.vmware_datacenter',
+    name: 'VMware Datacenter',
+    icon: Building,
+    description: 'Manage datacenters in VMware vSphere.',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      datacenter_name: 'NewDatacenter',
+      state: 'present',
+      validate_certs: 'no',
+    },
+  },
+  {
+    id: 'vmware_folder',
+    module: 'community.vmware.vmware_folder',
+    name: 'VMware VM Folder',
+    icon: FolderOpen,
+    description: 'Manage VM inventory folders in VMware vSphere.',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      datacenter_name: 'Datacenter1',
+      folder_name: '/MyProject/WebServers',
+      folder_type: 'vm', // or host, datastore, network
+      state: 'present',
+      validate_certs: 'no',
+    },
+  },
+  {
+    id: 'vmware_tag_manager',
+    module: 'community.vmware.vmware_tag_manager',
+    name: 'VMware Tag Manager',
+    icon: Tags,
+    description: 'Manage tags and categories in VMware vSphere.',
+    defaultParameters: {
+      hostname: 'vcenter.example.com',
+      username: 'user@vsphere.local',
+      password: 'YOUR_PASSWORD',
+      category_name: 'Environment',
+      tag_name: 'Production',
+      state: 'present',
+      validate_certs: 'no',
+    },
+  },
+];
+
 
 export const moduleGroups: AnsibleModuleGroup[] = [
   { 
@@ -365,5 +466,10 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     name: "Virtualization / Proxmox VE",
     icon: ServerCog, 
     modules: proxmoxModules
+  },
+  {
+    name: "Virtualization / VMware",
+    icon: Layers3,
+    modules: vmwareModules
   }
 ];

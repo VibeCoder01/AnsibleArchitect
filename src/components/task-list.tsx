@@ -15,7 +15,7 @@ import {
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap,
   TestTube2, MessageSquare, Eye, Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig, Shapes,
-  FileLock2, Layers3 
+  FileLock2, Layers3, Camera, Tags
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -181,6 +181,13 @@ const moduleIcons: Record<string, React.ElementType> = {
   'community.general.proxmox_lxc': Container,
   'community.general.proxmox_pool_member': Layers,
   'community.general.proxmox_template': Copy,
+  // VMware Modules
+  'community.vmware.vmware_guest': Server,
+  'community.vmware.vmware_guest_info': Info,
+  'community.vmware.vmware_guest_snapshot': Camera,
+  'community.vmware.vmware_datacenter': Building,
+  'community.vmware.vmware_folder': FolderOpen,
+  'community.vmware.vmware_tag_manager': Tags,
   // Default/Fallback
   default: Puzzle,
 };
