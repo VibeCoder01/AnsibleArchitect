@@ -81,7 +81,7 @@ export function AnsibleArchitectLayout() {
         </SidebarFooter>
       </Sidebar>
       
-      <SidebarInset className="flex-1 overflow-auto ml-2"> {/* Added ml-2 for spacing */}
+      <SidebarInset className="flex-1 overflow-auto ml-3"> {/* Increased margin for better separation */}
         <PlaybookEditor ref={playbookEditorRef} />
       </SidebarInset>
     </div>

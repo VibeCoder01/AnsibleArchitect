@@ -122,8 +122,8 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-end p-3 pl-4 md:pl-6 border-b bg-card shadow-sm flex-shrink-0">
-        {/* Buttons are now on the right */}
+      {/* Header for buttons */}
+      <div className="flex items-center justify-end p-3 border-b bg-card shadow-sm flex-shrink-0">
         <div className="flex items-center space-x-2">
           <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="text-xs px-2 py-1">
             <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
@@ -134,14 +134,15 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden p-2 md:p-3 space-x-2 md:space-x-3">
+      {/* Main content area: Two columns */}
+      <div className="flex flex-1 overflow-hidden p-3 space-x-3 md:space-x-4"> {/* Increased space-x for padding between columns and overall p-3 */}
         {/* Left Column: Design/Task List */}
         <div 
           ref={dropZoneRef}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
-          className={`flex-1 p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
+          className={`flex-1 p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col bg-card shadow-sm ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
           aria-dropeffect="copy"
         >
           <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
