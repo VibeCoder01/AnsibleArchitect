@@ -3,12 +3,11 @@
 
 import * as React from "react";
 import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, GalleryVerticalEnd, FileCode } from "lucide-react";
+import { Download, ClipboardCheck } from "lucide-react";
 
 export interface PlaybookEditorRef {
   addTaskFromPalette: (moduleDef: AnsibleModuleDefinition) => void;
@@ -122,16 +121,9 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   };
   
   return (
-    <Tabs defaultValue="design" className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-between p-3 pl-4 md:pl-6 border-b bg-card shadow-sm flex-shrink-0">
-        <TabsList className="bg-muted/70">
-          <TabsTrigger value="design" className="text-xs px-3 py-1.5 flex items-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <GalleryVerticalEnd className="w-3.5 h-3.5 mr-1.5" /> Design
-          </TabsTrigger>
-          <TabsTrigger value="yaml" className="text-xs px-3 py-1.5 flex items-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <FileCode className="w-3.5 h-3.5 mr-1.5" /> YAML
-          </TabsTrigger>
-        </TabsList>
+    <div className="h-full flex flex-col bg-background">
+      <div className="flex items-center justify-end p-3 pl-4 md:pl-6 border-b bg-card shadow-sm flex-shrink-0">
+        {/* Buttons are now on the right */}
         <div className="flex items-center space-x-2">
           <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="text-xs px-2 py-1">
             <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
@@ -142,24 +134,29 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
         </div>
       </div>
 
-      <TabsContent value="design" className="flex-grow overflow-hidden p-2 md:p-3 pl-4 md:pl-6 m-0 flex flex-col">
-          <div 
-            ref={dropZoneRef}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`flex-grow p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
-            aria-dropeffect="copy"
-          >
-            <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-            <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
-          </div>
-      </TabsContent>
+      <div className="flex flex-1 overflow-hidden p-2 md:p-3 space-x-2 md:space-x-3">
+        {/* Left Column: Design/Task List */}
+        <div 
+          ref={dropZoneRef}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          className={`flex-1 p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
+          aria-dropeffect="copy"
+        >
+          <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+          <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+        </div>
 
-      <TabsContent value="yaml" className="flex-grow overflow-hidden m-0 pt-0 pr-2 pb-2 pl-4 md:pt-0 md:pr-3 md:pb-3 md:pl-6 flex flex-col">
-         <YamlDisplay tasks={tasks} />
-      </TabsContent>
-    </Tabs>
+        {/* Right Column: YAML Display */}
+        <div className="flex-1 flex flex-col overflow-hidden border rounded-lg bg-card shadow-sm">
+          <h2 className="text-base font-semibold text-foreground font-headline flex-shrink-0 p-3 border-b">Generated YAML</h2>
+          <div className="flex-grow overflow-hidden">
+             <YamlDisplay tasks={tasks} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 });
 

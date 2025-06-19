@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -31,25 +32,23 @@ function generatePlaybookYaml(tasks: AnsibleTask[]): string {
       play.tasks.forEach(task => {
         if (task.rawYAML) {
           const lines = task.rawYAML.trim().split('\n');
-          // Ensure the first line of rawYAML starts with '- ' or is indented correctly under tasks.
-          // Assuming rawYAML is a single task definition.
           lines.forEach((line, index) => {
             if (index === 0 && !line.trim().startsWith('-')) {
-               yamlString += `    - ${line.trim()}\n`; // Start of a new task item
+               yamlString += `    - ${line.trim()}\n`; 
             } else if (index === 0 && line.trim().startsWith('-')) {
-               yamlString += `    ${line.trim()}\n`; // Already a task item
+               yamlString += `    ${line.trim()}\n`; 
             }
             else {
-               yamlString += `      ${line.trim()}\n`; // Subsequent lines indented
+               yamlString += `      ${line.trim()}\n`; 
             }
           });
         } else {
-          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`; // Ensure task name is quoted
+          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`; 
           if (task.comment) {
             yamlString += `      # ${task.comment}\n`;
           }
           yamlString += `      ${task.module}:\n`;
-          Object.entries(task.parameters).forEach(([key, value]) => {
+          Object.entries(task.parameters || {}).forEach(([key, value]) => {
             let formattedValue = value;
             if (typeof value === 'string') {
               if (value.includes('\n')) {
@@ -83,7 +82,7 @@ export function YamlDisplay({ tasks }: YamlDisplayProps) {
   }, [tasks]);
 
   return (
-    <ScrollArea className="h-full w-full rounded-md border bg-card shadow-inner">
+    <ScrollArea className="h-full w-full">
       <pre className="p-4 font-code text-xs whitespace-pre-wrap break-all" aria-label="Generated YAML playbook">
         {yamlContent || "# Add tasks to see YAML output here"}
       </pre>
