@@ -157,6 +157,7 @@ const utilityExecutionModules: AnsibleModuleDefinition[] = [
   { id: 'x509_certificate', module: 'community.crypto.x509_certificate', name: 'Generate X.509 Certificate', icon: FileBadge, description: 'Generate self-signed X.509 certificates.', defaultParameters: { path: "/etc/ssl/certs/mycert.pem", privatekey_path: "/etc/ssl/private/mykey.pem", provider: "selfsigned" } },
   { id: 'include_vars', module: 'ansible.builtin.include_vars', name: 'Include Variables File', icon: FileSymlink, description: 'Load variables from files dynamically.', defaultParameters: { file: "vars/my_vars.yml" } },
   { id: 'set_stats', module: 'ansible.builtin.set_stats', name: 'Set Custom Stats', icon: BarChartBig, description: 'Set custom stats for the playbook run.', defaultParameters: { data: { my_stat: "value" }, per_host: "yes" } },
+  { id: 'wakeonlan', module: 'community.general.wakeonlan', name: 'Wake-on-LAN', icon: Power, description: 'Sends a Wake-on-LAN (Magic Packet) to a remote host.', defaultParameters: { mac: "00:11:22:AA:BB:CC", broadcast: "192.168.1.255", state: "present" } },
 ];
 
 export const moduleGroups: AnsibleModuleGroup[] = [
@@ -201,3 +202,4 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     modules: utilityExecutionModules 
   },
 ];
+

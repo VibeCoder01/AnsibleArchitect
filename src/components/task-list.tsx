@@ -167,6 +167,7 @@ const moduleIcons: Record<string, React.ElementType> = {
   'community.crypto.x509_certificate': FileBadge,
   'ansible.builtin.include_vars': FileSymlink,
   'ansible.builtin.set_stats': BarChartBig,
+  'community.general.wakeonlan': Power,
   // Default/Fallback
   default: Puzzle,
 };
