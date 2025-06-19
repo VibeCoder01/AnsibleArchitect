@@ -25,10 +25,10 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
   const segments: YamlSegment[] = [];
   const playbookStructure: AnsiblePlaybookYAML = [
     {
-      id: "play1", 
+      id: "play1",
       name: playbookName,
-      hosts: "all", 
-      become: true,  
+      hosts: "all",
+      become: true,
       tasks: tasks,
     },
   ];
@@ -79,7 +79,7 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
             taskBlockContent += `        ${key}: ${formattedValue}\n`;
           });
         }
-        taskBlockContent += "\n"; 
+        taskBlockContent += "\n";
         segments.push({ id: task.id, content: taskBlockContent, isTaskBlock: true });
       });
     } else {
@@ -94,6 +94,12 @@ const createNewPlaybook = (name?: string): PlaybookState => ({
   name: name || `Untitled Playbook ${Date.now() % 10000}`,
   tasks: [],
 });
+
+interface StoppableEvent {
+  stopPropagation: () => void;
+  preventDefault?: () => void; // KeyboardEvent has this
+}
+
 
 export function AnsibleArchitectLayout() {
   const [playbooks, setPlaybooks] = React.useState<PlaybookState[]>([]);
@@ -123,15 +129,20 @@ export function AnsibleArchitectLayout() {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
     const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
     if (storedPlaybooks) {
-      const parsedPlaybooks = JSON.parse(storedPlaybooks);
-      if (parsedPlaybooks.length > 0) {
-        setPlaybooks(parsedPlaybooks);
-        if (storedActiveId && parsedPlaybooks.some((p: PlaybookState) => p.id === storedActiveId)) {
-          setActivePlaybookId(storedActiveId);
-        } else {
-          setActivePlaybookId(parsedPlaybooks[0].id);
+      try {
+        const parsedPlaybooks = JSON.parse(storedPlaybooks);
+        if (Array.isArray(parsedPlaybooks) && parsedPlaybooks.length > 0) {
+          setPlaybooks(parsedPlaybooks);
+          if (storedActiveId && parsedPlaybooks.some((p: PlaybookState) => p.id === storedActiveId)) {
+            setActivePlaybookId(storedActiveId);
+          } else {
+            setActivePlaybookId(parsedPlaybooks[0].id);
+          }
+          return;
         }
-        return;
+      } catch (error) {
+        console.error("Error parsing playbooks from localStorage:", error);
+        // Fallback to default if parsing fails
       }
     }
     const defaultPlaybook = createNewPlaybook("Default Playbook");
@@ -142,9 +153,13 @@ export function AnsibleArchitectLayout() {
   React.useEffect(() => {
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY); // Clear if no playbooks
     }
     if (activePlaybookId) {
       localStorage.setItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY, activePlaybookId);
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
     }
   }, [playbooks, activePlaybookId]);
 
@@ -168,7 +183,8 @@ export function AnsibleArchitectLayout() {
   const fullYamlContent = React.useMemo(() => yamlSegments.map(segment => segment.content).join(''), [yamlSegments]);
 
   const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
-    if (!activePlaybook) return;
+    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
+    if (!currentActivePlaybook) return;
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -182,7 +198,7 @@ export function AnsibleArchitectLayout() {
       newTask = taskDetails as AnsibleTask;
       if (!newTask.id) newTask.id = crypto.randomUUID();
     }
-    updateActivePlaybookState({ tasks: [...activePlaybook.tasks, newTask] });
+    updateActivePlaybookState({ tasks: [...currentActivePlaybook.tasks, newTask] });
   };
 
   const handleAddTaskFromPalette = (moduleDef: AnsibleModuleDefinition) => {
@@ -190,22 +206,25 @@ export function AnsibleArchitectLayout() {
   };
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
-    if (!activePlaybook) return;
+    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
+    if (!currentActivePlaybook) return;
     updateActivePlaybookState({
-      tasks: activePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
+      tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
   };
 
   const deleteTaskInActivePlaybook = (taskId: string) => {
-    if (!activePlaybook) return;
+    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
+    if (!currentActivePlaybook) return;
     updateActivePlaybookState({
-      tasks: activePlaybook.tasks.filter(task => task.id !== taskId),
+      tasks: currentActivePlaybook.tasks.filter(task => task.id !== taskId),
     });
   };
 
   const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
-    if (!activePlaybook) return;
-    const newTasks = [...activePlaybook.tasks];
+    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
+    if (!currentActivePlaybook) return;
+    const newTasks = [...currentActivePlaybook.tasks];
     const [draggedItem] = newTasks.splice(dragIndex, 1);
     newTasks.splice(hoverIndex, 0, draggedItem);
     updateActivePlaybookState({ tasks: newTasks });
@@ -219,7 +238,8 @@ export function AnsibleArchitectLayout() {
     const blob = new Blob([fullYamlContent], { type: "text/yaml;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${activePlaybook?.name.replace(/\s+/g, '_') || 'playbook'}.yml`;
+    const currentActivePlaybook = getActivePlaybook();
+    link.download = `${currentActivePlaybook?.name.replace(/\s+/g, '_') || 'playbook'}.yml`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -242,7 +262,8 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleValidatePlaybook = () => {
-    if (!activePlaybook || activePlaybook.tasks.length === 0) {
+    const currentActivePlaybook = getActivePlaybook();
+    if (!currentActivePlaybook || currentActivePlaybook.tasks.length === 0) {
       toast({
         title: "Validation",
         description: "Active playbook is empty. Nothing to validate.",
@@ -254,14 +275,14 @@ export function AnsibleArchitectLayout() {
       yaml.load(fullYamlContent);
       toast({
         title: "Validation Successful",
-        description: `YAML syntax for ${activePlaybook.name} is valid.`,
+        description: `YAML syntax for ${currentActivePlaybook.name} is valid.`,
         className:
           "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
       });
     } catch (error) {
       toast({
         title: "Validation Failed",
-        description: `Invalid YAML syntax for ${activePlaybook.name}.`,
+        description: `Invalid YAML syntax for ${currentActivePlaybook.name}.`,
         variant: "destructive",
       });
     }
@@ -376,8 +397,10 @@ export function AnsibleArchitectLayout() {
     toast({ title: "New Playbook", description: `"${newPBook.name}" created and activated.`});
   };
 
-  const handleClosePlaybook = (playbookIdToClose: string, event: React.MouseEvent) => {
-    event.stopPropagation(); 
+  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent) => {
+    event.stopPropagation();
+    const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
+    
     setPlaybooks(prev => {
       const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
       if (remainingPlaybooks.length === 0) {
@@ -386,15 +409,22 @@ export function AnsibleArchitectLayout() {
         return [newDefault];
       }
       if (activePlaybookId === playbookIdToClose) {
-        setActivePlaybookId(remainingPlaybooks[0].id);
+        // Find index of closed tab to determine next active tab
+        const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
+        if (closedTabIndex > 0) { // If not the first tab, activate previous
+            setActivePlaybookId(prev[closedTabIndex -1].id);
+        } else { // If first tab, activate new first tab
+            setActivePlaybookId(remainingPlaybooks[0].id);
+        }
       }
       return remainingPlaybooks;
     });
-    const closedPlaybook = playbooks.find(p => p.id === playbookIdToClose);
-    toast({ title: "Playbook Closed", description: `"${closedPlaybook?.name || 'Playbook'}" closed.`});
+    if (playbookToClose) {
+        toast({ title: "Playbook Closed", description: `"${playbookToClose.name}" closed.`});
+    }
   };
 
-  const openRenameModal = (playbookId: string, currentName: string, event: React.MouseEvent) => {
+  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent) => {
     event.stopPropagation();
     setRenamingPlaybookId(playbookId);
     setTempPlaybookName(currentName);
@@ -413,9 +443,16 @@ export function AnsibleArchitectLayout() {
     setTempPlaybookName("");
   };
 
-  if (!activePlaybook) {
-     return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
+  if (!activePlaybook && playbooks.length > 0 && !activePlaybookId) {
+     // Handle case where activePlaybookId might be null initially but playbooks exist
+     setActivePlaybookId(playbooks[0].id);
+     return <div className="flex h-screen items-center justify-center">Initializing...</div>;
   }
+  if (!activePlaybook && playbooks.length === 0) {
+      // This case should ideally be handled by the useEffect creating a default playbook
+      return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
+  }
+
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
@@ -434,9 +471,9 @@ export function AnsibleArchitectLayout() {
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
       {/* Tabbed Area for Playbook Tasks and YAML - Takes remaining horizontal space */}
-      <Tabs 
-        value={activePlaybookId || ""} 
-        onValueChange={setActivePlaybookId} 
+      <Tabs
+        value={activePlaybookId || ""}
+        onValueChange={setActivePlaybookId}
         className="flex flex-col flex-1 min-w-0" // flex-1 makes it take remaining horizontal space
       >
         <div className="flex items-center border-b bg-card rounded-t-lg">
@@ -448,24 +485,30 @@ export function AnsibleArchitectLayout() {
                 className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
               >
                 <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                  onClick={(e) => openRenameModal(p.id, p.name, e)}
-                  aria-label="Rename playbook"
-                >
-                  <Edit2 className="w-3 h-3" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                  onClick={(e) => handleClosePlaybook(p.id, e)}
-                  aria-label="Close playbook"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+                 <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
+                    onClick={(e) => openRenameModal(p.id, p.name, e)}
+                    aria-label="Rename playbook"
+                  >
+                    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}>
+                      <Edit2 className="w-3 h-3" />
+                    </span>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
+                    onClick={(e) => handleClosePlaybook(p.id, e)}
+                    aria-label="Close playbook"
+                  >
+                     <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}>
+                       <X className="w-3 h-3" />
+                    </span>
+                  </Button>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -475,10 +518,10 @@ export function AnsibleArchitectLayout() {
         </div>
 
         {playbooks.map(p => (
-          <TabsContent 
-            key={p.id} 
-            value={p.id} 
-            className="flex-grow flex min-w-0 mt-0 rounded-b-lg overflow-hidden" // flex-grow for height, flex for horizontal children
+          <TabsContent
+            key={p.id}
+            value={p.id}
+            className="flex-grow flex min-w-0 mt-0 rounded-b-lg overflow-hidden"
           >
             {/* Column 2: Playbook Tasks (within tab) */}
             <div
@@ -490,7 +533,7 @@ export function AnsibleArchitectLayout() {
               aria-dropeffect="copy"
             >
               <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-              <div className="flex-grow overflow-hidden p-3"> {/* flex-grow to make TaskList scroll area fill space */}
+              <div className="flex-grow overflow-hidden p-3">
                 <TaskList
                   tasks={p.tasks}
                   onUpdateTask={updateTaskInActivePlaybook}
@@ -511,9 +554,9 @@ export function AnsibleArchitectLayout() {
               className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
             >
               <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-              <div className="flex-grow overflow-hidden"> {/* flex-grow to make YamlDisplay scroll area fill space */}
-                <YamlDisplay 
-                  yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)} 
+              <div className="flex-grow overflow-hidden">
+                <YamlDisplay
+                  yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
                   hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
                   onSetHoveredSegmentId={setHoveredTaskId}
                 />
@@ -635,4 +678,5 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
     
