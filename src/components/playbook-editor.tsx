@@ -34,7 +34,6 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
       if (!newTask.id) newTask.id = crypto.randomUUID(); 
     }
     setTasks((prevTasks) => [...prevTasks, newTask]);
-    // Removed toast for adding task to keep output clean, can be re-added if needed.
   };
   
   React.useImperativeHandle(ref, () => ({
@@ -47,12 +46,10 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
     setTasks((prevTasks) =>
       prevTasks.map((task) => (task.id === updatedTask.id ? updatedTask : task))
     );
-    // Removed toast for updating task
   };
 
   const deleteTask = (taskId: string) => {
     setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-    // Removed toast for deleting task
   };
   
   const moveTask = (dragIndex: number, hoverIndex: number) => {
@@ -121,41 +118,37 @@ const PlaybookEditor = React.forwardRef<PlaybookEditorRef, {}>((props, ref) => {
   };
   
   return (
-    <div className="h-full flex flex-col bg-transparent">
-      {/* Header for buttons */}
-      <div className="flex items-center justify-end pr-4 py-3 border-b bg-card shadow-sm flex-shrink-0">
-        <div className="flex items-center space-x-2">
-          <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="text-xs px-2 py-1">
-            <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
-          </Button>
-          <Button onClick={handleExportYaml} variant="outline" size="sm" className="text-xs px-2 py-1">
-            <Download className="w-3.5 h-3.5 mr-1.5" /> Export
-          </Button>
+    <div className="h-full flex flex-row space-x-4 bg-transparent">
+      {/* Left Column: Design/Task List */}
+      <div 
+        ref={dropZoneRef}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`flex-1 p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col bg-card shadow-sm ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
+        aria-dropeffect="copy"
+      >
+        <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+        <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+      </div>
+
+      {/* Middle Column: YAML Display */}
+      <div className="flex-1 flex flex-col overflow-hidden border rounded-lg bg-card shadow-sm p-0">
+        <h2 className="text-base font-semibold text-foreground font-headline flex-shrink-0 p-3 border-b">Generated YAML</h2>
+        <div className="flex-grow overflow-hidden">
+           <YamlDisplay tasks={tasks} />
         </div>
       </div>
 
-      {/* Main content area: Two columns */}
-      <div className="flex flex-1 overflow-hidden py-3 pr-4 space-x-4">
-        {/* Left Column: Design/Task List */}
-        <div 
-          ref={dropZoneRef}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          className={`flex-1 p-3 border-2 border-dashed rounded-lg transition-colors flex flex-col bg-card shadow-sm ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} overflow-hidden`}
-          aria-dropeffect="copy"
-        >
-          <h2 className="text-base font-semibold mb-2 text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-          <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
-        </div>
-
-        {/* Right Column: YAML Display */}
-        <div className="flex-1 flex flex-col overflow-hidden border rounded-lg bg-card shadow-sm p-0">
-          <h2 className="text-base font-semibold text-foreground font-headline flex-shrink-0 p-3 border-b">Generated YAML</h2>
-          <div className="flex-grow overflow-hidden">
-             <YamlDisplay tasks={tasks} />
-          </div>
-        </div>
+      {/* Right Column: Actions */}
+      <div className="w-40 flex-shrink-0 p-3 border rounded-lg bg-card shadow-sm flex flex-col space-y-2">
+        {/* You can add a title for this column if desired, e.g., <h2 className="text-base font-semibold mb-2 text-foreground font-headline">Actions</h2> */}
+        <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+          <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
+        </Button>
+        <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+          <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+        </Button>
       </div>
     </div>
   );

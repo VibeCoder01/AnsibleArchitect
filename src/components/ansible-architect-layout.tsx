@@ -7,20 +7,18 @@ import {
   SidebarHeader,
   SidebarFooter,
   SidebarInset,
-  SidebarTrigger,
-  SidebarRail, // Added SidebarRail import
 } from "@/components/ui/sidebar";
 import { ModulePalette } from "@/components/module-palette";
 import { PlaybookEditor, type PlaybookEditorRef } from "@/components/playbook-editor";
 import { AnsibleArchitectIcon } from "@/components/icons/ansible-architect-icon";
 import { Separator } from "@/components/ui/separator";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "./ui/tooltip"; 
-import { defaultModules } from "@/config/ansible-modules"; 
+// import { Button } from "./ui/button"; // No longer needed for collapsed view
+// import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "./ui/tooltip"; // No longer needed for collapsed view
+// import { defaultModules } from "@/config/ansible-modules"; // No longer needed for collapsed view specific logic
 
-const collapsedModuleIds: string[] = ['debug', 'apt', 'service', 'copy', 'file', 'user', 'command', 'git'];
-const defaultModulesForCollapsedView: AnsibleModuleDefinition[] = defaultModules.filter(mod => collapsedModuleIds.includes(mod.id));
+// const collapsedModuleIds: string[] = ['debug', 'apt', 'service', 'copy', 'file', 'user', 'command', 'git'];
+// const defaultModulesForCollapsedView: AnsibleModuleDefinition[] = defaultModules.filter(mod => collapsedModuleIds.includes(mod.id));
 
 
 export function AnsibleArchitectLayout() {
@@ -33,57 +31,35 @@ export function AnsibleArchitectLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-background"> {/* REMOVED overflow-hidden */}
+    <div className="flex h-screen bg-background">
       <Sidebar
         variant="sidebar" 
-        collapsible="icon" 
-        className="border-r shadow-lg w-[280px] group-data-[collapsible=icon]:w-[56px] transition-all duration-200 ease-in-out flex flex-col"
+        collapsible="none" 
+        className="border-r shadow-lg w-[280px] flex flex-col" // Width is fixed, no transition classes needed based on collapse
         side="left"
       >
-        <SidebarRail /> {/* ADDED SidebarRail */}
-        <SidebarHeader className="p-3 flex items-center justify-between flex-shrink-0">
+        {/* SidebarRail removed as sidebar is not collapsible/resizable by user */}
+        <SidebarHeader className="p-3 flex items-center flex-shrink-0"> {/* Removed justify-between */}
           <div className="flex items-center space-x-2.5">
             <AnsibleArchitectIcon className="w-7 h-7 text-primary" />
-            <h1 className="text-xl font-bold font-headline text-primary group-data-[collapsible=icon]:hidden">Ansible Architect</h1>
+            <h1 className="text-xl font-bold font-headline text-primary">Ansible Architect</h1> {/* Removed group-data class */}
           </div>
-          <SidebarTrigger />
+          {/* SidebarTrigger removed */}
         </SidebarHeader>
-        <Separator className="group-data-[collapsible=icon]:hidden flex-shrink-0" />
-        <SidebarContent className="p-0 group-data-[collapsible=icon]:p-0 overflow-hidden flex-grow">
-          <div className="h-full group-data-[collapsible=icon]:hidden">
+        <Separator className="flex-shrink-0" /> {/* Removed group-data class */}
+        <SidebarContent className="p-0 overflow-hidden flex-grow"> {/* Removed group-data class */}
+          <div className="h-full"> {/* Removed group-data class */}
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </div>
-           <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center space-y-1 p-1 mt-2">
-            {defaultModulesForCollapsedView.map(mod => {
-              const Icon = mod.icon; 
-              return (
-                <Tooltip key={mod.id}>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="w-10 h-10 hover:bg-sidebar-accent"
-                      onClick={() => handleAddTaskFromPalette(mod)} 
-                      aria-label={`Add ${mod.name}`}
-                    >
-                      {Icon ? <Icon className="w-5 h-5 text-sidebar-foreground hover:text-sidebar-accent-foreground" /> : <span className="text-xs">MOD</span>}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="font-sans">
-                    <p>Add {mod.name}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+           {/* Collapsed view for modules removed */}
         </SidebarContent>
-        <Separator className="group-data-[collapsible=icon]:hidden flex-shrink-0"/>
-        <SidebarFooter className="p-3 group-data-[collapsible=icon]:hidden flex-shrink-0">
+        <Separator className="flex-shrink-0"/> {/* Removed group-data class */}
+        <SidebarFooter className="p-3 flex-shrink-0"> {/* Removed group-data class */}
           <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} Ansible Architect</p>
         </SidebarFooter>
       </Sidebar>
       
-      <SidebarInset className="flex-1 overflow-auto bg-background"> {/* REMOVED pl-4 */}
+      <SidebarInset className="flex-1 overflow-auto bg-background p-4">
         <PlaybookEditor ref={playbookEditorRef} />
       </SidebarInset>
     </div>
