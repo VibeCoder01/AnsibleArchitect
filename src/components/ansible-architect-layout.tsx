@@ -8,6 +8,7 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarTrigger,
+  SidebarRail, // Added SidebarRail import
 } from "@/components/ui/sidebar";
 import { ModulePalette } from "@/components/module-palette";
 import { PlaybookEditor, type PlaybookEditorRef } from "@/components/playbook-editor";
@@ -32,13 +33,14 @@ export function AnsibleArchitectLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background"> {/* REMOVED overflow-hidden */}
       <Sidebar
         variant="sidebar" 
         collapsible="icon" 
         className="border-r shadow-lg w-[280px] group-data-[collapsible=icon]:w-[56px] transition-all duration-200 ease-in-out flex flex-col"
         side="left"
       >
+        <SidebarRail /> {/* ADDED SidebarRail */}
         <SidebarHeader className="p-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2.5">
             <AnsibleArchitectIcon className="w-7 h-7 text-primary" />
@@ -81,7 +83,7 @@ export function AnsibleArchitectLayout() {
         </SidebarFooter>
       </Sidebar>
       
-      <SidebarInset className="flex-1 overflow-auto pl-4 bg-background">
+      <SidebarInset className="flex-1 overflow-auto bg-background"> {/* REMOVED pl-4 */}
         <PlaybookEditor ref={playbookEditorRef} />
       </SidebarInset>
     </div>
