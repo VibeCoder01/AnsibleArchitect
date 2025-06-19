@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy, X, FilePlus, Edit2, FileCheck } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -126,7 +126,9 @@ export function AnsibleArchitectLayout() {
   const [renamingPlaybookId, setRenamingPlaybookId] = React.useState<string | null>(null);
   const [tempPlaybookName, setTempPlaybookName] = React.useState("");
   
-  const inventoryInputRef = React.useRef<HTMLInputElement>(null);
+  const inventoryFileRef = React.useRef<HTMLInputElement>(null);
+  const playbookFileRef = React.useRef<HTMLInputElement>(null);
+
 
   React.useEffect(() => {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
@@ -276,35 +278,52 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleValidatePlaybook = () => {
-    const currentActivePlaybook = getActivePlaybook();
-    if (!isClientReady || !currentActivePlaybook || currentActivePlaybook.tasks.length === 0) {
-      toast({
-        title: "Validation",
-        description: "Active playbook is empty. Nothing to validate.",
-        variant: "default",
-      });
+  const handleValidatePlaybookFile = () => {
+     playbookFileRef.current?.click();
+  };
+
+  const handlePlaybookFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
       return;
     }
-    try {
-      yaml.load(fullYamlContent);
-      toast({
-        title: "Validation Successful",
-        description: `YAML syntax for ${currentActivePlaybook.name} is valid.`,
-        className:
-          "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-      });
-    } catch (error) {
-      toast({
-        title: "Validation Failed",
-        description: `Invalid YAML syntax for ${currentActivePlaybook.name}. See console for details.`,
-        variant: "destructive",
-      });
-      if (error instanceof Error) {
-        console.error("Playbook YAML Validation Error:", error.message);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        try {
+          yaml.load(content);
+          toast({
+            title: "Playbook Validation Successful",
+            description: `YAML syntax for "${file.name}" is valid.`,
+            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+          });
+        } catch (error) {
+          let errorMessage = "Invalid YAML syntax.";
+          if (error instanceof yaml.YAMLException) {
+            errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`;
+          } else if (error instanceof Error) {
+            errorMessage = error.message;
+          }
+          toast({
+            title: "Playbook Validation Failed",
+            description: `Error in "${file.name}" (YAML): ${errorMessage}. See console for details.`,
+            variant: "destructive",
+          });
+          console.error(`Playbook YAML Validation Error (${file.name}):`, error);
+        }
       } else {
-        console.error("Playbook YAML Validation Error:", error);
+        toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
       }
+    };
+    reader.onerror = () => {
+      toast({ title: "Error", description: `Error reading file: ${file.name}`, variant: "destructive" });
+    };
+    reader.readAsText(file);
+
+    if (playbookFileRef.current) {
+      playbookFileRef.current.value = "";
     }
   };
 
@@ -534,22 +553,16 @@ export function AnsibleArchitectLayout() {
                     errorMessage = `Empty host entry in group "${currentGroup}".`;
                     break;
                 }
-                // Basic character validation for the host part. Ansible allows more complex names (FQDNs, IPs, ranges).
-                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord)) { 
+                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord.split('=')[0].trim())) { 
                     errorLine = i + 1;
-                    errorMessage = `Potentially invalid characters in host name: "${firstWord}" from line "${line}".`;
+                    errorMessage = `Potentially invalid characters in host name: "${firstWord.split('=')[0].trim()}" from line "${line}".`;
                     break;
                 }
-                groups[currentGroup].push(firstWord); // Store the host part
+                groups[currentGroup].push(firstWord); 
                 hostCount++;
-                // Inline variables (e.g., host1 ansible_port=22) are allowed.
-                // The logic now correctly doesn't error on them here.
             }
-        } else { // Line is not a group header and no current group context (e.g. host before any group)
+        } else { 
              if (i === 0 && (line.includes("=") || /^[a-zA-Z0-9_.-]+$/.test(line.split(/\s+/)[0]))) {
-                // Allow host or host with vars on first line (implies [all] group)
-                // For simplicity, we won't create an explicit 'all' group here but just allow it.
-                // More robust would be to create groups['all'] = [line.split(/\s+/)[0]]
                 hostCount++;
              } else {
                 errorLine = i + 1;
@@ -630,7 +643,6 @@ export function AnsibleArchitectLayout() {
                     errors.push(`'children' key in group '${path}' must be an object (dictionary).`);
                 } else {
                     for (const childGroupName in groupData.children) {
-                        // Not incrementing topLevelGroupCount here as it's a child
                         processGroup(childGroupName, groupData.children[childGroupName], `${path}.children.${childGroupName}`);
                     }
                 }
@@ -712,8 +724,8 @@ export function AnsibleArchitectLayout() {
           } else {
             for (const hostName in inventory._meta.hostvars) {
               processedHosts.add(hostName);
-              if (typeof inventory._meta.hostvars[hostName] !== 'object' || inventory._meta.hostvars[hostName] === null || Array.isArray(inventory._meta.hostvars[hostName])) {
-                warnings.push(`Host variables for '${hostName}' in _meta.hostvars should be an object.`);
+              if (inventory._meta.hostvars[hostName] !== null && (typeof inventory._meta.hostvars[hostName] !== 'object' || Array.isArray(inventory._meta.hostvars[hostName]))) {
+                warnings.push(`Host variables for '${hostName}' in _meta.hostvars should be an object or null.`);
               }
             }
           }
@@ -845,13 +857,17 @@ export function AnsibleArchitectLayout() {
     };
     reader.readAsText(file);
 
-    if (inventoryInputRef.current) {
-      inventoryInputRef.current.value = "";
+    if (inventoryFileRef.current) {
+      inventoryFileRef.current.value = "";
     }
   };
 
   if (!isClientReady) {
-    return <div className="flex h-screen items-center justify-center bg-background text-foreground">Loading playbooks...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-foreground">
+        Loading Ansible Architect...
+      </div>
+    );
   }
 
 
@@ -980,22 +996,30 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
           </Button>
           <Separator className="my-2"/>
-          <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
+          <Button onClick={handleValidatePlaybookFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
           </Button>
+          <input
+            type="file"
+            ref={playbookFileRef}
+            onChange={handlePlaybookFileChange}
+            accept=".yaml,.yml"
+            className="hidden"
+          />
           <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
           </Button>
           <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+            Copy YAML
           </Button>
           <Separator className="my-2"/>
-          <Button onClick={() => inventoryInputRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory file
+          <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
           </Button>
           <input
             type="file"
-            ref={inventoryInputRef}
+            ref={inventoryFileRef}
             onChange={handleInventoryFileChange}
             accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
             className="hidden"
@@ -1093,6 +1117,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
-    
-
