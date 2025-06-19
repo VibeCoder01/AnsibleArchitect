@@ -8,7 +8,7 @@ import {
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap, TestTube2, MessageSquare, Eye,
   Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig,
-  Shapes, FileLock2, Layers3 // Added for HashiCorp
+  Shapes, FileLock2, Layers3
 } from "lucide-react";
 
 const fileManagementModules: AnsibleModuleDefinition[] = [
@@ -245,6 +245,75 @@ const hashicorpModules: AnsibleModuleDefinition[] = [
   },
 ];
 
+const proxmoxModules: AnsibleModuleDefinition[] = [
+  {
+    id: 'proxmox_kvm',
+    module: 'community.general.proxmox_kvm',
+    name: 'Proxmox KVM',
+    icon: Server,
+    description: 'Manage KVM virtual machines on Proxmox VE.',
+    defaultParameters: {
+      api_host: 'proxmox.example.com',
+      api_user: 'root@pam',
+      api_password: 'YOUR_PASSWORD',
+      node: 'pve',
+      name: 'my-vm',
+      state: 'present',
+      cores: 1,
+      memory: 1024,
+    },
+  },
+  {
+    id: 'proxmox_lxc',
+    module: 'community.general.proxmox_lxc',
+    name: 'Proxmox LXC',
+    icon: Container,
+    description: 'Manage LXC containers on Proxmox VE.',
+    defaultParameters: {
+      api_host: 'proxmox.example.com',
+      api_user: 'root@pam',
+      api_password: 'YOUR_PASSWORD',
+      node: 'pve',
+      hostname: 'my-container',
+      state: 'present',
+      cores: 1,
+      memory: 512,
+      ostemplate: 'local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.gz'
+    },
+  },
+  {
+    id: 'proxmox_pool_member',
+    module: 'community.general.proxmox_pool_member',
+    name: 'Proxmox Pool Member',
+    icon: Layers,
+    description: 'Manage Proxmox VE pool members (VMs, containers, storage).',
+    defaultParameters: {
+      api_host: 'proxmox.example.com',
+      api_user: 'root@pam',
+      api_password: 'YOUR_PASSWORD',
+      pool: 'my-resource-pool',
+      vmid: 100, // Example VM ID
+      state: 'present',
+    },
+  },
+  {
+    id: 'proxmox_template',
+    module: 'community.general.proxmox_template',
+    name: 'Proxmox Template Management',
+    icon: Copy,
+    description: 'Manage Proxmox VE templates (create, delete).',
+    defaultParameters: {
+      api_host: 'proxmox.example.com',
+      api_user: 'root@pam',
+      api_password: 'YOUR_PASSWORD',
+      node: 'pve',
+      vmid: 100, // VM ID to convert to template
+      name: 'my-template-name',
+      state: 'present',
+    },
+  },
+];
+
 
 export const moduleGroups: AnsibleModuleGroup[] = [
   { 
@@ -291,6 +360,10 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     name: "HashiCorp",
     icon: Shapes,
     modules: hashicorpModules
+  },
+  {
+    name: "Virtualization / Proxmox VE",
+    icon: ServerCog, 
+    modules: proxmoxModules
   }
 ];
-
