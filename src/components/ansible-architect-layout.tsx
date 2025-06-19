@@ -7,13 +7,18 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy } from "lucide-react";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook } from "@/types/ansible";
+import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy, Settings, Trash2, PlusCircle } from "lucide-react";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook, AnsibleRoleRef } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { moduleGroups } from "@/config/ansible-modules";
+
 
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
 
-// Moved generatePlaybookYaml function here
 function generatePlaybookYaml(tasks: AnsibleTask[]): string {
   const playbook: AnsiblePlaybook = [
     {
@@ -39,16 +44,16 @@ function generatePlaybookYaml(tasks: AnsibleTask[]): string {
           const lines = task.rawYAML.trim().split('\n');
           lines.forEach((line, index) => {
             if (index === 0 && !line.trim().startsWith('-')) {
-               yamlString += `    - ${line.trim()}\n`; 
+               yamlString += `    - ${line.trim()}\n`;
             } else if (index === 0 && line.trim().startsWith('-')) {
-               yamlString += `    ${line.trim()}\n`; 
+               yamlString += `    ${line.trim()}\n`;
             }
             else {
-               yamlString += `      ${line.trim()}\n`; 
+               yamlString += `      ${line.trim()}\n`;
             }
           });
         } else {
-          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`; 
+          yamlString += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`;
           if (task.comment) {
             yamlString += `      # ${task.comment}\n`;
           }
@@ -69,7 +74,7 @@ function generatePlaybookYaml(tasks: AnsibleTask[]): string {
             yamlString += `        ${key}: ${formattedValue}\n`;
           });
         }
-        yamlString += "\n"; 
+        yamlString += "\n";
       });
     } else {
       yamlString += "  tasks: []\n\n";
@@ -86,11 +91,15 @@ export function AnsibleArchitectLayout() {
 
   const [col1Width, setCol1Width] = React.useState(350);
   const [col2Width, setCol2Width] = React.useState(350);
-  
+
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
   const [startX, setStartX] = React.useState(0);
   const [initialCol1W, setInitialCol1W] = React.useState(0);
   const [initialCol2W, setInitialCol2W] = React.useState(0);
+
+  const [definedRoles, setDefinedRoles] = React.useState<AnsibleRoleRef[]>([]);
+  const [isManageRolesModalOpen, setIsManageRolesModalOpen] = React.useState(false);
+  const [newRoleName, setNewRoleName] = React.useState("");
 
   const yamlContent = React.useMemo(() => generatePlaybookYaml(tasks), [tasks]);
 
@@ -169,7 +178,7 @@ export function AnsibleArchitectLayout() {
       toast({ title: "Validation", description: "Playbook is empty. Nothing to validate.", variant: "default" });
       return;
     }
-    const isValid = Math.random() > 0.2; 
+    const isValid = Math.random() > 0.2;
     if (isValid) {
       toast({ title: "Validation Successful", description: "Playbook appears to be valid.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
     } else {
@@ -253,12 +262,35 @@ export function AnsibleArchitectLayout() {
     />
   );
 
+  const handleAddDefinedRole = () => {
+    if (newRoleName.trim() === "") {
+      toast({ title: "Error", description: "Role name cannot be empty.", variant: "destructive" });
+      return;
+    }
+    if (definedRoles.some(role => role.name === newRoleName.trim())) {
+      toast({ title: "Error", description: "A role with this name already exists.", variant: "destructive" });
+      return;
+    }
+    setDefinedRoles(prev => [...prev, { id: crypto.randomUUID(), name: newRoleName.trim() }]);
+    setNewRoleName("");
+    toast({ title: "Success", description: `Role "${newRoleName.trim()}" added.` });
+  };
+
+  const handleDeleteDefinedRole = (roleId: string) => {
+    const roleToDelete = definedRoles.find(r => r.id === roleId);
+    setDefinedRoles(prev => prev.filter(role => role.id !== roleId));
+    if (roleToDelete) {
+      toast({ title: "Success", description: `Role "${roleToDelete.name}" deleted.`, variant: "default" });
+    }
+  };
+
+
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
       {/* Container for the first 3 resizable columns */}
       <div className="flex flex-1 min-w-0">
         {/* Column 1: Module Palette */}
-        <div 
+        <div
           style={{ flex: `0 0 ${col1Width}px` }}
           className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
         >
@@ -272,7 +304,7 @@ export function AnsibleArchitectLayout() {
         <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
         {/* Column 2: Playbook Tasks */}
-        <div 
+        <div
           style={{ flex: `0 0 ${col2Width}px` }}
           onDrop={handleDropOnTaskList}
           onDragOver={handleDragOverTaskList}
@@ -282,14 +314,20 @@ export function AnsibleArchitectLayout() {
         >
           <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
           <div className="flex-grow overflow-hidden p-3">
-            <TaskList tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} onMoveTask={moveTask} />
+            <TaskList
+              tasks={tasks}
+              onUpdateTask={updateTask}
+              onDeleteTask={deleteTask}
+              onMoveTask={moveTask}
+              definedRoles={definedRoles}
+            />
           </div>
         </div>
 
         <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
         {/* Column 3: Generated YAML */}
-        <div 
+        <div
           style={{ flex: '1 1 0%' }}
           className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
         >
@@ -302,7 +340,9 @@ export function AnsibleArchitectLayout() {
 
       {/* Column 4: Actions (Fixed Width) */}
       <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
-        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
+         <div className="p-3 border-b flex-shrink-0">
+          <h2 className="text-base font-semibold text-foreground font-headline">Actions</h2>
+        </div>
         <div className="p-3 space-y-2">
           <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
@@ -314,6 +354,10 @@ export function AnsibleArchitectLayout() {
             <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
           </Button>
           <Separator className="my-2"/>
+           <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
+          </Button>
+          <Separator className="my-2"/>
           <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
             <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
@@ -322,6 +366,55 @@ export function AnsibleArchitectLayout() {
           <Separator className="my-2"/>
         </div>
       </div>
+
+      {/* Manage Roles Modal */}
+      <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="font-headline">Manage Defined Roles</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newRoleNameInput">New Role Name</Label>
+              <div className="flex space-x-2">
+                <Input
+                  id="newRoleNameInput"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder="e.g., webserver_setup"
+                  className="text-sm"
+                />
+                <Button onClick={handleAddDefinedRole} size="sm">
+                  <PlusCircle className="w-4 h-4 mr-1.5" /> Add Role
+                </Button>
+              </div>
+            </div>
+            <Separator />
+            {definedRoles.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Existing Roles</Label>
+                <ScrollArea className="h-[200px] border rounded-md p-2">
+                  {definedRoles.map(role => (
+                    <div key={role.id} className="flex items-center justify-between p-1.5 hover:bg-muted/50 rounded-md">
+                      <span className="text-sm">{role.name}</span>
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleDeleteDefinedRole(role.id)}>
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </ScrollArea>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No roles defined yet.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

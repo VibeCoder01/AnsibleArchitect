@@ -4,7 +4,7 @@ export interface AnsibleModuleDefinition {
   name: string; // e.g., "APT Package Management"
   module: string; // e.g., "apt"
   description: string;
-  icon?: React.ElementType; 
+  icon?: React.ElementType;
   defaultParameters?: Record<string, any>;
 }
 
@@ -32,3 +32,9 @@ export interface AnsiblePlay {
 }
 
 export type AnsiblePlaybook = AnsiblePlay[];
+
+// Reference to a defined Ansible Role (name only for now)
+export interface AnsibleRoleRef {
+  id: string;
+  name: string;
+}

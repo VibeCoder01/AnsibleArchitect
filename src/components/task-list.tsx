@@ -2,16 +2,16 @@
 "use client";
 
 import * as React from "react";
-import type { AnsibleTask } from "@/types/ansible";
+import type { AnsibleTask, AnsibleRoleRef } from "@/types/ansible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, UserCog, ListTree, Shell, 
+import {
+  Trash2, Edit3, GripVertical, TerminalSquare, Package, Cog, Copy, FileText, FileJson2, UserCog, ListTree, Shell,
   GitFork, CalendarClock, DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck, PlusCircle, X,
-  FilePlus, FolderOpen, FileSearch, Replace, FileCog as FileCogIcon, FileSymlink, Archive as ArchiveIcon, PackagePlus, Box, 
-  Users2, Server, Power, Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle, 
-  CheckCircle2, Hourglass, Files, Search as SearchIconLucide, 
+  FilePlus, FolderOpen, FileSearch, Replace, FileCog as FileCogIcon, FileSymlink, Archive as ArchiveIcon, PackagePlus, Box,
+  Users2, Server, Power, Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle,
+  CheckCircle2, Hourglass, Files, Search as SearchIconLucide,
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap,
   TestTube2, MessageSquare, Eye, Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig
@@ -20,6 +20,13 @@ import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 interface TaskListProps {
@@ -27,6 +34,7 @@ interface TaskListProps {
   onUpdateTask: (updatedTask: AnsibleTask) => void;
   onDeleteTask: (taskId: string) => void;
   onMoveTask: (dragIndex: number, hoverIndex: number) => void;
+  definedRoles?: AnsibleRoleRef[]; // Optional: for playbook task list
 }
 
 const moduleIcons: Record<string, React.ElementType> = {
@@ -152,15 +160,15 @@ const moduleIcons: Record<string, React.ElementType> = {
   'ansible.builtin.meta': Workflow,
   'ansible.builtin.ping': TestTube2,
   'ansible.builtin.gather_facts': Info,
-  'delegate_to': Waypoints, 
-  'run_once': MessageSquare,    
-  'tags': ToggleLeft,        
+  'delegate_to': Waypoints,
+  'run_once': MessageSquare,
+  'tags': ToggleLeft,
   'community.crypto.openssl_privatekey': KeyRound,
   'community.crypto.x509_certificate': FileBadge,
   'ansible.builtin.include_vars': FileSymlink,
   'ansible.builtin.set_stats': BarChartBig,
   // Default/Fallback
-  default: Puzzle, 
+  default: Puzzle,
 };
 
 interface EditableParameter {
@@ -169,7 +177,7 @@ interface EditableParameter {
   value: string;
 }
 
-export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: TaskListProps) {
+export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [] }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
   const [editableParameters, setEditableParameters] = React.useState<EditableParameter[]>([]);
@@ -192,7 +200,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
     dragItem.current = null;
     dragOverItem.current = null;
   };
-  
+
   const openEditModal = (task: AnsibleTask) => {
     setEditingTask(task);
     setTempTaskName(task.name);
@@ -200,7 +208,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       Object.entries(task.parameters || {}).map(([k, v]) => ({
         id: crypto.randomUUID(),
         key: k,
-        value: String(v ?? ''), 
+        value: String(v ?? ''),
       }))
     );
   };
@@ -209,6 +217,21 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
     setEditableParameters(prev =>
       prev.map(p => (p.id === id ? { ...p, [field]: newValue } : p))
     );
+  };
+
+  const handleSelectDefinedRole = (roleName: string) => {
+    // Find 'name' parameter or add it
+    const nameParamIndex = editableParameters.findIndex(p => p.key === 'name');
+    if (nameParamIndex > -1) {
+      setEditableParameters(prev =>
+        prev.map((p, index) => (index === nameParamIndex ? { ...p, value: roleName } : p))
+      );
+    } else {
+      setEditableParameters(prev => [
+        ...prev,
+        { id: crypto.randomUUID(), key: 'name', value: roleName },
+      ]);
+    }
   };
 
   const handleAddParameter = () => {
@@ -221,7 +244,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
   const handleRemoveParameter = (id: string) => {
     setEditableParameters(prev => prev.filter(p => p.id !== id));
   };
-  
+
   const handleSaveTask = () => {
     if (editingTask) {
       const newParams = editableParameters.reduce((acc, p) => {
@@ -231,8 +254,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
           const lowerVal = p.value.toLowerCase().trim();
           if (lowerVal === 'true' || lowerVal === 'yes') val = true;
           else if (lowerVal === 'false' || lowerVal === 'no') val = false;
-          else if (!isNaN(Number(p.value)) && p.value.trim() !== "") val = Number(p.value);
-          acc[trimmedKey] = val; 
+          else if (trimmedKey !== 'name' && !isNaN(Number(p.value)) && p.value.trim() !== "") val = Number(p.value); // Avoid converting role name to number
+          acc[trimmedKey] = val;
         }
         return acc;
       }, {} as Record<string, any>);
@@ -240,6 +263,9 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       setEditingTask(null);
     }
   };
+
+  const isRoleModuleType = editingTask?.module === 'ansible.builtin.include_role' || editingTask?.module === 'ansible.builtin.import_role';
+  const currentRoleNameParamValue = editableParameters.find(p => p.key === 'name')?.value || "";
 
   return (
     <ScrollArea className="h-full p-0.5 flex-grow">
@@ -254,8 +280,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
           {tasks.map((task, index) => {
             const IconComponent = moduleIcons[task.module] || moduleIcons.default;
             return (
-              <Card 
-                key={task.id} 
+              <Card
+                key={task.id}
                 className="bg-card shadow-sm hover:shadow-md transition-shadow group relative"
                 draggable
                 onDragStart={() => handleDragStart(index)}
@@ -318,13 +344,49 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
             <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto px-1">
               <div>
                 <Label htmlFor="taskNameEdit" className="font-medium">Task Name</Label>
-                <Input 
-                  id="taskNameEdit" 
-                  value={tempTaskName} 
-                  onChange={(e) => setTempTaskName(e.target.value)} 
+                <Input
+                  id="taskNameEdit"
+                  value={tempTaskName}
+                  onChange={(e) => setTempTaskName(e.target.value)}
                   className="mt-1 text-sm"
                 />
               </div>
+
+              {isRoleModuleType && definedRoles.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="definedRoleSelect" className="font-medium">Select Defined Role</Label>
+                    <Select
+                      value={currentRoleNameParamValue && definedRoles.some(r => r.name === currentRoleNameParamValue) ? currentRoleNameParamValue : ""}
+                      onValueChange={(value) => {
+                        if (value === "") { // Manual Entry / None
+                          // If switching to manual, ensure the 'name' param exists for editing
+                          if (!editableParameters.some(p => p.key === 'name')) {
+                            setEditableParameters(prev => [...prev, { id: crypto.randomUUID(), key: 'name', value: '' }]);
+                          }
+                        } else {
+                          handleSelectDefinedRole(value);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="definedRoleSelect" className="mt-1 text-sm">
+                        <SelectValue placeholder="Select a defined role (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">-- Manual Entry / None --</SelectItem>
+                        {definedRoles.map(role => (
+                          <SelectItem key={role.id} value={role.name}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Selecting a role will populate the 'name' parameter below.</p>
+                  </div>
+                </>
+              )}
+
               <Separator />
               <div>
                 <Label className="font-medium block mb-1">Parameters</Label>
@@ -337,6 +399,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
                         value={param.key}
                         onChange={(e) => handleParameterPropertyChange(param.id, 'key', e.target.value)}
                         className="flex-1 text-sm"
+                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== ""}
                       />
                       <Input
                         aria-label="Parameter value"
@@ -344,6 +407,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
                         value={param.value}
                         onChange={(e) => handleParameterPropertyChange(param.id, 'value', e.target.value)}
                         className="flex-1 text-sm"
+                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== ""}
                       />
                       <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleRemoveParameter(param.id)} aria-label="Remove parameter">
                         <X className="w-3.5 h-3.5" />
@@ -368,5 +432,3 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
     </ScrollArea>
   );
 }
-
-    
