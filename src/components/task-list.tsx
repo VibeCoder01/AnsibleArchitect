@@ -15,7 +15,7 @@ import {
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap,
   TestTube2, MessageSquare, Eye, Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig, Shapes,
-  FileLock2, Layers3, Camera, Tags
+  FileLock2, Layers3, Camera, Tags, Laptop
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -188,6 +188,14 @@ const moduleIcons: Record<string, React.ElementType> = {
   'community.vmware.vmware_datacenter': Building,
   'community.vmware.vmware_folder': FolderOpen,
   'community.vmware.vmware_tag_manager': Tags,
+  // Microsoft / Windows Modules
+  'community.windows.win_feature': ListChecks,
+  'community.windows.win_package': Package,
+  'community.windows.win_service': Cog,
+  'community.windows.win_user': UserCog,
+  'community.windows.win_reboot': Power,
+  'community.windows.win_domain_membership': Users,
+  'community.sqlserver.sqlserver_db': Database,
   // Default/Fallback
   default: Puzzle,
 };

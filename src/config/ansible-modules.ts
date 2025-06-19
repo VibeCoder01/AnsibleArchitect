@@ -8,7 +8,7 @@ import {
   Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap, TestTube2, MessageSquare, Eye,
   Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
   Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb, RefreshCw, Save, FileBadge, BarChartBig,
-  Shapes, FileLock2, Layers3, Camera, Tags
+  Shapes, FileLock2, Layers3, Camera, Tags, Laptop
 } from "lucide-react";
 
 const fileManagementModules: AnsibleModuleDefinition[] = [
@@ -415,6 +415,65 @@ const vmwareModules: AnsibleModuleDefinition[] = [
   },
 ];
 
+const microsoftWindowsModules: AnsibleModuleDefinition[] = [
+  {
+    id: 'win_feature',
+    module: 'community.windows.win_feature',
+    name: 'Windows Feature/Role',
+    icon: ListChecks,
+    description: 'Manages Windows features and roles (e.g., IIS, Hyper-V).',
+    defaultParameters: { name: "Web-Server", state: "present", include_management_tools: "yes" },
+  },
+  {
+    id: 'win_package',
+    module: 'community.windows.win_package',
+    name: 'Windows Package',
+    icon: Package,
+    description: 'Installs/uninstalls MSI, .exe, or other package types on Windows.',
+    defaultParameters: { path: "C:\\temp\\installer.msi", state: "present" },
+  },
+  {
+    id: 'win_service',
+    module: 'community.windows.win_service',
+    name: 'Windows Service',
+    icon: Cog,
+    description: 'Manages Windows services (start, stop, restart, enable, disable).',
+    defaultParameters: { name: "Spooler", state: "started", start_mode: "auto" },
+  },
+  {
+    id: 'win_user',
+    module: 'community.windows.win_user',
+    name: 'Windows User',
+    icon: UserCog,
+    description: 'Manages local user accounts on Windows.',
+    defaultParameters: { name: "appuser", password: "SecurePassword123!", state: "present", groups: ["Users"], password_never_expires: "yes" },
+  },
+  {
+    id: 'win_reboot',
+    module: 'community.windows.win_reboot',
+    name: 'Windows Reboot',
+    icon: Power,
+    description: 'Reboots a Windows machine, optionally waiting for it to come back.',
+    defaultParameters: { reboot_timeout: 600, test_command: "whoami" },
+  },
+  {
+    id: 'win_domain_membership',
+    module: 'community.windows.win_domain_membership',
+    name: 'Windows Domain Membership',
+    icon: Users, // Using 'Users' as it implies joining a user directory/domain
+    description: 'Manages a Windows host\'s domain membership.',
+    defaultParameters: { dns_domain_name: "corp.example.com", hostname: "WINCLIENT01", domain_admin_user: "administrator@corp.example.com", domain_admin_password: "AdminPassword123!", state: "domain" },
+  },
+  {
+    id: 'sqlserver_db',
+    module: 'community.sqlserver.sqlserver_db',
+    name: 'SQL Server Database',
+    icon: Database,
+    description: 'Manages SQL Server databases (create, delete).',
+    defaultParameters: { name: "MyApplicationDB", state: "present", login_host: "sqlserver.example.com", login_user: "sa", login_password: "SAPassword123!" },
+  },
+];
+
 
 export const moduleGroups: AnsibleModuleGroup[] = [
   { 
@@ -471,5 +530,10 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     name: "Virtualization / VMware",
     icon: Layers3,
     modules: vmwareModules
+  },
+  {
+    name: "Microsoft / Windows",
+    icon: Laptop,
+    modules: microsoftWindowsModules
   }
 ];
