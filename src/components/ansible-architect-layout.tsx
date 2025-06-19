@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck } from "lucide-react";
+import { Download, ClipboardCheck, ExternalLink } from "lucide-react";
 import type { AnsibleTask, AnsibleModuleDefinition } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 
@@ -79,7 +79,7 @@ export function AnsibleArchitectLayout() {
       toast({ title: "Validation", description: "Playbook is empty. Nothing to validate.", variant: "default" });
       return;
     }
-    const isValid = Math.random() > 0.2;
+    const isValid = Math.random() > 0.2; 
     if (isValid) {
       toast({ title: "Validation Successful", description: "Playbook appears to be valid.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
     } else {
@@ -115,7 +115,7 @@ export function AnsibleArchitectLayout() {
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
       {/* Column 1: Module Palette */}
-      <div className="flex-1 min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 max-w-[320px] bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden">
         <div className="p-3 flex items-center border-b flex-shrink-0">
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
@@ -146,13 +146,19 @@ export function AnsibleArchitectLayout() {
       </div>
 
       {/* Column 4: Actions */}
-      <div className="w-40 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col p-3 space-y-2">
+      <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col p-3 space-y-2">
         <h2 className="text-base font-semibold mb-1 text-foreground font-headline flex-shrink-0">Actions</h2>
         <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-          <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate
+          <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
         </Button>
         <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-          <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+          <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
+        </Button>
+        <Separator className="my-2"/>
+        <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+          <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
+            <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
+          </a>
         </Button>
       </div>
     </div>

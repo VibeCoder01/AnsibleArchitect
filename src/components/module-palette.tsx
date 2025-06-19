@@ -3,11 +3,10 @@
 
 import * as React from "react";
 import type { AnsibleModuleDefinition } from "@/types/ansible";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, ExternalLink, Search as SearchIcon, FolderOpen as PuzzleIcon } from "lucide-react"; // Changed PuzzleIcon default
+import { PlusCircle, Search as SearchIcon, FolderOpen as PuzzleIcon } from "lucide-react"; 
 import { moduleGroups } from "@/config/ansible-modules";
 import { 
   Accordion,
@@ -37,12 +36,13 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
       .map(group => {
         const filteredModules = group.modules.filter(module =>
           module.name.toLowerCase().includes(lowerSearchTerm) ||
-          module.description.toLowerCase().includes(lowerSearchTerm)
+          module.description.toLowerCase().includes(lowerSearchTerm) ||
+          module.module.toLowerCase().includes(lowerSearchTerm)
         );
         return { ...group, modules: filteredModules };
       })
       .filter(group => group.modules.length > 0);
-  }, [searchTerm]);
+  }, [searchTerm, moduleGroups]);
 
   const defaultOpenGroups = searchTerm.trim() 
     ? filteredModuleGroups.map(g => g.name) 
@@ -50,7 +50,7 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-3 border-b flex-shrink-0"> {/* Replaced CardHeader for direct styling */}
+      <div className="p-3 border-b flex-shrink-0">
         <div className="relative">
           <SearchIcon className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -63,7 +63,7 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
           />
         </div>
       </div>
-      <ScrollArea className="flex-grow p-3"> {/* Replaced CardContent and nested ScrollArea */}
+      <ScrollArea className="flex-grow p-3">
         {filteredModuleGroups.length > 0 ? (
           <Accordion type="multiple" defaultValue={defaultOpenGroups} className="w-full space-y-1">
             {filteredModuleGroups.map((group) => {
@@ -119,13 +119,6 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
           </div>
         )}
       </ScrollArea>
-      <div className="p-3 border-t flex-shrink-0"> {/* Replaced CardFooter */}
-        <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary">
-          <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
-            Browse Ansible Galaxy <ExternalLink className="w-3 h-3 ml-1.5" />
-          </a>
-        </Button>
-      </div>
     </div>
   );
 }
