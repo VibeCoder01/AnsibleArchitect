@@ -47,7 +47,7 @@ export function ModulePalette({ onAddTaskFromPalette, totalModuleCount }: Module
 
   const defaultOpenGroups = searchTerm.trim() 
     ? filteredModuleGroups.map(g => g.name) 
-    : ["File Management", "Package Management", "System & Services"];
+    : []; 
   
   const searchPlaceholder = `Search ${totalModuleCount} modules...`;
 

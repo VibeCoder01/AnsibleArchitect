@@ -41,7 +41,7 @@ const moduleIcons: Record<string, React.ElementType> = {
   'ansible.builtin.find': SearchIconLucide,
   'ansible.builtin.replace': Replace,
   'community.general.ini_file': FileCogIcon,
-  'community.general.xml': CodeXml,
+  'community.general.xml': FileCode,
   'ansible.posix.acl': Lock,
   'ansible.builtin.tempfile': FilePlus,
   'community.general.iso_extract': Container,
@@ -152,9 +152,9 @@ const moduleIcons: Record<string, React.ElementType> = {
   'ansible.builtin.meta': Workflow,
   'ansible.builtin.ping': TestTube2,
   'ansible.builtin.gather_facts': Info,
-  'delegate_to': Waypoints, // Keyword
-  'run_once': MessageSquare,    // Keyword
-  'tags': ToggleLeft,        // Keyword
+  'delegate_to': Waypoints, 
+  'run_once': MessageSquare,    
+  'tags': ToggleLeft,        
   'community.crypto.openssl_privatekey': KeyRound,
   'community.crypto.x509_certificate': FileBadge,
   'ansible.builtin.include_vars': FileSymlink,
