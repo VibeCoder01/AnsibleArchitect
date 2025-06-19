@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { moduleGroups } from "@/config/ansible-modules";
 
 
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
@@ -376,6 +375,11 @@ export function AnsibleArchitectLayout() {
           <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
             <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
+            </a>
+          </Button>
+          <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+            <a href="https://docs.ansible.com/ansible/latest/user_guide/windows_intro.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
             </a>
           </Button>
           <Separator className="my-2"/>
