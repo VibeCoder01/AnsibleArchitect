@@ -115,7 +115,7 @@ export function AnsibleArchitectLayout() {
 
   const totalModuleCount = React.useMemo(() => {
     return moduleGroups.reduce((count, group) => count + group.modules.length, 0);
-  }, [moduleGroups]);
+  }, [moduleGroups]); // Corrected dependency array
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
