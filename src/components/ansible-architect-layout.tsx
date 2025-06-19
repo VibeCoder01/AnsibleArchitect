@@ -353,7 +353,7 @@ export function AnsibleArchitectLayout() {
       </div>
 
       {/* Column 4: Actions (Fixed Width) */}
-      <div className="w-48 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
+      <div className="w-64 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
          <div className="p-3 border-b flex-shrink-0">
           <h2 className="text-base font-semibold text-foreground font-headline">Actions</h2>
         </div>
