@@ -8,6 +8,7 @@ import { YamlDisplay } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Download, ClipboardCheck, ExternalLink, Info, ClipboardCopy, Settings, Trash2, PlusCircle } from "lucide-react";
+import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybook, AnsibleRoleRef } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -175,14 +176,28 @@ export function AnsibleArchitectLayout() {
 
   const handleValidatePlaybook = () => {
     if (tasks.length === 0) {
-      toast({ title: "Validation", description: "Playbook is empty. Nothing to validate.", variant: "default" });
+      toast({
+        title: "Validation",
+        description: "Playbook is empty. Nothing to validate.",
+        variant: "default",
+      });
       return;
     }
-    const isValid = Math.random() > 0.2;
-    if (isValid) {
-      toast({ title: "Validation Successful", description: "Playbook appears to be valid.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
-    } else {
-      toast({ title: "Validation Failed", description: "Found potential issues in the playbook.", variant: "destructive" });
+
+    try {
+      yaml.load(yamlContent);
+      toast({
+        title: "Validation Successful",
+        description: "YAML syntax is valid.",
+        className:
+          "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+      });
+    } catch (error) {
+      toast({
+        title: "Validation Failed",
+        description: "Invalid YAML syntax.",
+        variant: "destructive",
+      });
     }
   };
 
