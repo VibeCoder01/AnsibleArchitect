@@ -97,7 +97,7 @@ const createNewPlaybook = (name?: string): PlaybookState => ({
 
 interface StoppableEvent {
   stopPropagation: () => void;
-  preventDefault?: () => void; // KeyboardEvent has this
+  preventDefault?: () => void; 
 }
 
 
@@ -107,8 +107,8 @@ export function AnsibleArchitectLayout() {
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
-  const [col1Width, setCol1Width] = React.useState(350); // Module Palette width
-  const [col2Width, setCol2Width] = React.useState(350); // Task List width (within tab)
+  const [col1Width, setCol1Width] = React.useState(350); 
+  const [col2Width, setCol2Width] = React.useState(350); 
 
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
   const [startX, setStartX] = React.useState(0);
@@ -142,7 +142,6 @@ export function AnsibleArchitectLayout() {
         }
       } catch (error) {
         console.error("Error parsing playbooks from localStorage:", error);
-        // Fallback to default if parsing fails
       }
     }
     const defaultPlaybook = createNewPlaybook("Default Playbook");
@@ -154,7 +153,7 @@ export function AnsibleArchitectLayout() {
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY); // Clear if no playbooks
+      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY); 
     }
     if (activePlaybookId) {
       localStorage.setItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY, activePlaybookId);
@@ -409,11 +408,10 @@ export function AnsibleArchitectLayout() {
         return [newDefault];
       }
       if (activePlaybookId === playbookIdToClose) {
-        // Find index of closed tab to determine next active tab
         const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        if (closedTabIndex > 0) { // If not the first tab, activate previous
+        if (closedTabIndex > 0) { 
             setActivePlaybookId(prev[closedTabIndex -1].id);
-        } else { // If first tab, activate new first tab
+        } else { 
             setActivePlaybookId(remainingPlaybooks[0].id);
         }
       }
@@ -444,19 +442,16 @@ export function AnsibleArchitectLayout() {
   };
 
   if (!activePlaybook && playbooks.length > 0 && !activePlaybookId) {
-     // Handle case where activePlaybookId might be null initially but playbooks exist
      setActivePlaybookId(playbooks[0].id);
      return <div className="flex h-screen items-center justify-center">Initializing...</div>;
   }
   if (!activePlaybook && playbooks.length === 0) {
-      // This case should ideally be handled by the useEffect creating a default playbook
       return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
   }
 
 
   return (
     <div className="flex h-screen bg-background p-4 space-x-4">
-      {/* Column 1: Module Palette */}
       <div
         style={{ flex: `0 0 ${col1Width}px` }}
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
@@ -470,11 +465,10 @@ export function AnsibleArchitectLayout() {
 
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
-      {/* Tabbed Area for Playbook Tasks and YAML - Takes remaining horizontal space */}
       <Tabs
         value={activePlaybookId || ""}
         onValueChange={setActivePlaybookId}
-        className="flex flex-col flex-1 min-w-0" // flex-1 makes it take remaining horizontal space
+        className="flex flex-col flex-1 min-w-0 min-h-0" 
       >
         <div className="flex items-center border-b bg-card rounded-t-lg">
           <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
@@ -490,7 +484,7 @@ export function AnsibleArchitectLayout() {
                     variant="ghost"
                     size="icon"
                     className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
-                    onClick={(e) => openRenameModal(p.id, p.name, e)}
+                    onClick={(e) => openRenameModal(p.id, p.name, e as unknown as React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLSpanElement>)}
                     aria-label="Rename playbook"
                   >
                     <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}>
@@ -502,7 +496,7 @@ export function AnsibleArchitectLayout() {
                     variant="ghost"
                     size="icon"
                     className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                    onClick={(e) => handleClosePlaybook(p.id, e)}
+                    onClick={(e) => handleClosePlaybook(p.id, e as unknown as React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLSpanElement>)}
                     aria-label="Close playbook"
                   >
                      <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}>
@@ -521,9 +515,8 @@ export function AnsibleArchitectLayout() {
           <TabsContent
             key={p.id}
             value={p.id}
-            className="flex-grow flex min-w-0 mt-0 rounded-b-lg overflow-hidden"
+            className="flex-grow flex min-w-0 min-h-0 mt-0 rounded-b-lg overflow-hidden"
           >
-            {/* Column 2: Playbook Tasks (within tab) */}
             <div
               style={{ flex: `0 0 ${col2Width}px` }}
               onDrop={handleDropOnTaskList}
@@ -548,9 +541,8 @@ export function AnsibleArchitectLayout() {
 
             <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
-            {/* Column 3: Generated YAML (within tab) */}
             <div
-              style={{ flex: '1 1 0%' }} // Takes remaining width in tab
+              style={{ flex: '1 1 0%' }} 
               className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
             >
               <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
@@ -566,7 +558,6 @@ export function AnsibleArchitectLayout() {
         ))}
       </Tabs>
 
-      {/* Column 4: Actions (Fixed Width) */}
       <div className="w-64 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <div className="p-3 space-y-2">
@@ -602,7 +593,6 @@ export function AnsibleArchitectLayout() {
         </div>
       </div>
 
-      {/* Manage Roles Modal */}
       <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -651,7 +641,6 @@ export function AnsibleArchitectLayout() {
         </DialogContent>
       </Dialog>
 
-       {/* Rename Playbook Modal */}
       <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
