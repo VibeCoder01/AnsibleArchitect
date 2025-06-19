@@ -158,7 +158,7 @@ export function AnsibleArchitectLayout() {
 
     setPlaybooks(initialPlaybooks);
     setActivePlaybookId(initialActiveId);
-    setIsClientReady(true);
+    setIsClientReady(true); 
   }, []);
 
   React.useEffect(() => {
@@ -177,7 +177,6 @@ export function AnsibleArchitectLayout() {
   }, [playbooks, activePlaybookId, isClientReady]);
 
   const getActivePlaybook = React.useCallback(() => {
-    // This check is important to avoid using data before it's ready on client-side
     if (!isClientReady) return undefined;
     return playbooks.find(p => p.id === activePlaybookId);
   }, [playbooks, activePlaybookId, isClientReady]);
@@ -472,137 +471,202 @@ export function AnsibleArchitectLayout() {
   const validateIniInventoryContent = (content: string, fileName: string) => {
     const lines = content.split(/\r?\n/);
     let currentGroup: string | null = null;
+    let isVarsSection = false;
+    let isChildrenSection = false;
     const groups: Record<string, string[]> = {};
     let hostCount = 0;
     let errorLine = -1;
     let errorMessage = "";
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line === "" || line.startsWith("#") || line.startsWith(";")) {
-        continue; // Skip empty lines and comments
-      }
+        const line = lines[i].trim();
+        if (line === "" || line.startsWith("#") || line.startsWith(";")) {
+            continue; // Skip empty lines and comments
+        }
 
-      if (line.startsWith("[") && line.endsWith("]")) {
-        const groupName = line.substring(1, line.length - 1).trim();
-        if (!groupName || groupName.includes("[") || groupName.includes("]")) {
-          errorLine = i + 1;
-          errorMessage = `Malformed group header: ${line}`;
-          break;
-        }
-        if (groupName.endsWith(":vars")) { // Handle group vars section
-           currentGroup = groupName; 
-           if (!groups[currentGroup]) groups[currentGroup] = [];
+        if (line.startsWith("[") && line.endsWith("]")) {
+            const groupNameRaw = line.substring(1, line.length - 1).trim();
+            if (!groupNameRaw || groupNameRaw.includes("[") || groupNameRaw.includes("]")) {
+                errorLine = i + 1;
+                errorMessage = `Malformed group header: ${line}`;
+                break;
+            }
+            
+            isVarsSection = groupNameRaw.endsWith(":vars");
+            isChildrenSection = groupNameRaw.endsWith(":children");
+            currentGroup = groupNameRaw;
+            
+            if (!groups[currentGroup]) groups[currentGroup] = [];
+
+        } else if (currentGroup) {
+            const hasEquals = line.includes("=");
+            // Variable definition
+            if (hasEquals) {
+                if (!isVarsSection) {
+                    errorLine = i + 1;
+                    errorMessage = `Variable definition "${line}" found outside a :vars section.`;
+                    break;
+                }
+                if (!/^\s*\S+\s*=\s*\S*/.test(line.replace(/\s*#.*$/, ""))) { // Allow spaces around =
+                    errorLine = i + 1;
+                    errorMessage = `Malformed variable definition: ${line}`;
+                    break;
+                }
+                groups[currentGroup].push(line);
+            } 
+            // Host or child group definition
+            else {
+                if (isVarsSection) {
+                    errorLine = i + 1;
+                    errorMessage = `Non-variable line "${line}" found inside a :vars section.`;
+                    break;
+                }
+                const hostOrChildGroupName = line.split(/\s+/)[0]; // Take the first part before spaces
+                if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrChildGroupName)) {
+                    errorLine = i + 1;
+                    errorMessage = `Invalid characters in host/child group name: ${hostOrChildGroupName}`;
+                    break;
+                }
+                if (isChildrenSection) {
+                    // Line in a :children section is a child group name
+                    groups[currentGroup].push(hostOrChildGroupName); 
+                } else {
+                    // Line in a regular group section is a host
+                    groups[currentGroup].push(hostOrChildGroupName);
+                    hostCount++;
+                }
+            }
         } else {
-           currentGroup = groupName;
-           if (!groups[currentGroup]) groups[currentGroup] = [];
+            errorLine = i + 1;
+            errorMessage = `Unexpected line format or host/variable outside a group: ${line}`;
+            break;
         }
-      } else if (currentGroup) {
-        const parts = line.split(/\s+/);
-        const hostOrVarName = parts[0];
-        
-        if (hostOrVarName.includes("=")) { 
-            if (!currentGroup.endsWith(":vars")) { 
-                errorLine = i + 1;
-                errorMessage = `Variable definition "${line}" found outside a :vars section.`;
-                break;
-            }
-            if (!/^\S+=\S+/.test(line.replace(/\s*#.*$/, ""))) { 
-                 errorLine = i + 1;
-                 errorMessage = `Malformed variable definition: ${line}`;
-                 break;
-            }
-            groups[currentGroup].push(line); 
-        } else { 
-            if (currentGroup.endsWith(":vars")) {
-                 errorLine = i + 1;
-                 errorMessage = `Host definition "${hostOrVarName}" found inside a :vars section.`;
-                 break;
-            }
-            if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrVarName)) { 
-                errorLine = i + 1;
-                errorMessage = `Invalid characters in host name: ${hostOrVarName}`;
-                break;
-            }
-            groups[currentGroup].push(hostOrVarName);
-            hostCount++;
-        }
-      } else {
-        errorLine = i + 1;
-        errorMessage = `Unexpected line format or host/variable outside a group: ${line}`;
-        break;
-      }
     }
 
     if (errorLine !== -1) {
-      toast({
-        title: "INI Inventory Validation Failed",
-        description: `Error in "${fileName}" on line ${errorLine}: ${errorMessage}`,
-        variant: "destructive",
-      });
+        toast({
+            title: "INI Inventory Validation Failed",
+            description: `Error in "${fileName}" on line ${errorLine}: ${errorMessage}`,
+            variant: "destructive",
+        });
     } else {
-      const groupCount = Object.keys(groups).filter(g => !g.endsWith(":vars")).length;
-      toast({
-        title: "INI Inventory Validation Successful",
-        description: `File "${fileName}" (INI) is valid. Found ${groupCount} group(s) and ${hostCount} host(s).`,
-        className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-      });
+        const groupCount = Object.keys(groups).filter(g => !g.endsWith(":vars") && !g.endsWith(":children")).length;
+        const childrenGroupCount = Object.keys(groups).filter(g => g.endsWith(":children")).length;
+        const varsGroupCount = Object.keys(groups).filter(g => g.endsWith(":vars")).length;
+
+        let summary = `File "${fileName}" (INI) basic structure appears valid. `;
+        summary += `Found ${groupCount} host group(s), ${hostCount} host(s). `;
+        if (childrenGroupCount > 0) summary += `${childrenGroupCount} children definition(s). `;
+        if (varsGroupCount > 0) summary += `${varsGroupCount} group vars definition(s).`;
+
+        toast({
+            title: "INI Inventory Validation Successful",
+            description: summary.trim(),
+            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+        });
     }
   };
 
   const validateYamlInventoryContent = (content: string, fileName: string) => {
     try {
-      const inventory = yaml.load(content);
-      if (typeof inventory !== 'object' || inventory === null) {
-        toast({
-          title: "YAML Inventory Validation Failed",
-          description: `File "${fileName}" (YAML) root must be an object/dictionary.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      let hostCount = 0;
-      let groupCount = 0;
-
-      // Basic structural check for common Ansible inventory patterns
-      const parsedInventory = inventory as Record<string, any>;
-      for (const groupName in parsedInventory) {
-        groupCount++;
-        const groupContent = parsedInventory[groupName];
-        if (typeof groupContent !== 'object' || groupContent === null) {
-          toast({
-            title: "YAML Inventory Validation Warning",
-            description: `Group "${groupName}" in "${fileName}" (YAML) is not structured as an object.`,
-            variant: "default", 
-          });
-          continue;
+        const inventory = yaml.load(content);
+        if (typeof inventory !== 'object' || inventory === null) {
+            toast({
+                title: "YAML Inventory Validation Failed",
+                description: `File "${fileName}" (YAML) root must be an object/dictionary.`,
+                variant: "destructive",
+            });
+            return;
         }
-        if (groupContent.hosts && typeof groupContent.hosts === 'object' && groupContent.hosts !== null) {
-          hostCount += Object.keys(groupContent.hosts).length;
-        }
-        // Further checks for 'children', 'vars' can be added here.
-      }
 
-      toast({
-        title: "YAML Inventory Validation Successful",
-        description: `File "${fileName}" (YAML) is valid. Found ${groupCount} top-level group(s) and an estimated ${hostCount} host(s).`,
-        className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-      });
+        let hostCount = 0;
+        let topLevelGroupCount = 0;
+        const warnings: string[] = [];
+        const errors: string[] = [];
+
+        function processGroup(groupName: string, groupData: any, path: string) {
+            if (typeof groupData !== 'object' || groupData === null) {
+                errors.push(`Group '${path}' is not a valid object.`);
+                return;
+            }
+
+            if (groupData.hosts) {
+                if (typeof groupData.hosts !== 'object' || groupData.hosts === null) {
+                    errors.push(`'hosts' key in group '${path}' must be an object.`);
+                } else {
+                    hostCount += Object.keys(groupData.hosts).length;
+                    // Further validation: check if each host's value is an object (for vars)
+                    for (const hostName in groupData.hosts) {
+                        if (typeof groupData.hosts[hostName] !== 'object' || groupData.hosts[hostName] === null) {
+                           warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object.`);
+                        }
+                    }
+                }
+            }
+
+            if (groupData.vars) {
+                if (typeof groupData.vars !== 'object' || groupData.vars === null) {
+                    errors.push(`'vars' key in group '${path}' must be an object.`);
+                }
+            }
+
+            if (groupData.children) {
+                if (typeof groupData.children !== 'object' || groupData.children === null) {
+                    errors.push(`'children' key in group '${path}' must be an object.`);
+                } else {
+                    for (const childGroupName in groupData.children) {
+                        topLevelGroupCount++; // Counting subgroups as well for a more comprehensive group count
+                        processGroup(childGroupName, groupData.children[childGroupName], `${path}.children.${childGroupName}`);
+                    }
+                }
+            }
+        }
+
+        const parsedInventory = inventory as Record<string, any>;
+        for (const groupName in parsedInventory) {
+            topLevelGroupCount++;
+            processGroup(groupName, parsedInventory[groupName], groupName);
+        }
+        
+        if (errors.length > 0) {
+             toast({
+                title: "YAML Inventory Validation Failed",
+                description: `File "${fileName}" (YAML) has structural errors: ${errors.join("; ")}`,
+                variant: "destructive",
+            });
+        } else {
+            let summary = `File "${fileName}" (YAML) syntax is valid. `;
+            summary += `Found ${topLevelGroupCount} group definition(s) (including subgroups) and an estimated ${hostCount} host(s).`;
+            if (warnings.length > 0) {
+                 summary += ` Warnings: ${warnings.join("; ")}`;
+                 toast({
+                    title: "YAML Inventory Validation Successful (with warnings)",
+                    description: summary,
+                    variant: "default", // Use default for success with warnings
+                    className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
+                });
+            } else {
+                 toast({
+                    title: "YAML Inventory Validation Successful",
+                    description: summary,
+                    className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+                });
+            }
+        }
 
     } catch (error) {
-      let errorMessage = "Invalid YAML syntax.";
-      if (error instanceof yaml.YAMLException) {
-        errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`; // Keep it concise
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      toast({
-        title: "YAML Inventory Validation Failed",
-        description: `Error in "${fileName}" (YAML): ${errorMessage}`,
-        variant: "destructive",
-      });
-      console.error("YAML Inventory Validation Error:", error);
+        let errorMessage = "Invalid YAML syntax.";
+        if (error instanceof yaml.YAMLException) {
+            errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`;
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        toast({
+            title: "YAML Inventory Validation Failed",
+            description: `Error in "${fileName}" (YAML): ${errorMessage}`,
+            variant: "destructive",
+        });
+        console.error("YAML Inventory Validation Error:", error);
     }
   };
 
@@ -610,7 +674,7 @@ export function AnsibleArchitectLayout() {
   const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      toast({ title: "Error", description: "No file selected.", variant: "destructive" });
+      // No toast needed if no file is selected, as it's a user cancellation.
       return;
     }
 
@@ -622,12 +686,11 @@ export function AnsibleArchitectLayout() {
         if (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) {
           validateYamlInventoryContent(content, file.name);
         } else if (fileName.endsWith(".ini") || file.type === "text/plain" || fileName.includes("hosts")) { 
-          // Attempt INI for .ini, text/plain, or files named 'hosts'
           validateIniInventoryContent(content, file.name);
         } else {
             toast({
                 title: "Unknown File Type",
-                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, or .yml extensions.`,
+                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, or .yml extensions, or a file named 'hosts'.`,
                 variant: "default",
             });
         }
@@ -640,6 +703,7 @@ export function AnsibleArchitectLayout() {
     };
     reader.readAsText(file);
 
+    // Reset file input to allow selecting the same file again
     if (inventoryInputRef.current) {
       inventoryInputRef.current.value = "";
     }
@@ -792,7 +856,7 @@ export function AnsibleArchitectLayout() {
             type="file"
             ref={inventoryInputRef}
             onChange={handleInventoryFileChange}
-            accept=".ini,.yaml,.yml,text/plain,inventory/*"
+            accept=".ini,.yaml,.yml,text/plain,inventory/*,hosts"
             className="hidden"
           />
           <Separator className="my-2"/>
@@ -888,3 +952,4 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
