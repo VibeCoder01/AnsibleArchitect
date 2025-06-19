@@ -11,7 +11,10 @@ import {
   GitFork, CalendarClock, DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck, PlusCircle, X,
   FilePlus, FolderOpen, FileSearch, Replace, FileCog as FileCogIcon, FileSymlink, Archive as ArchiveIcon, PackagePlus, Box, 
   Users2, Server, Power, Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle, 
-  CheckCircle2, Hourglass, Files, Search, Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, Code
+  CheckCircle2, Hourglass, Files, Search as SearchIconLucide, // Renamed to avoid conflict with component
+  Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap,
+  TestTube2, MessageSquare, Eye, Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
+  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -27,56 +30,121 @@ interface TaskListProps {
 }
 
 const moduleIcons: Record<string, React.ElementType> = {
-  debug: TerminalSquare,
-  apt: Package,
-  service: Cog,
-  copy: Copy,
+  // File Management
   file: FileText,
+  copy: Copy,
   template: FileJson2,
-  user: UserCog,
-  package_facts: ListTree,
-  command: Shell,
-  git: GitFork,
-  cron: CalendarClock,
-  get_url: DownloadCloud,
-  unarchive: ArchiveRestore,
   lineinfile: FileEdit,
   blockinfile: TextSelect,
-  firewalld: ShieldCheck,
+  assemble: Files,
+  stat: FileSearch,
+  find: SearchIconLucide,
+  replace: Replace,
+  ini_file: FileCogIcon,
+  xml: CodeXml,
+  acl: Lock,
+  tempfile: FilePlus,
+  iso_extract: Container,
+  patch: Wand2,
+  // Package Management
+  package: Package,
+  apt: Package,
   yum: Package,
   dnf: Package,
+  zypper: Package,
+  pacman: Package,
   pip: Box,
   gem: Box,
   npm: Box,
   homebrew: PackagePlus,
+  snap: Container,
+  flatpak: Container,
+  package_facts: ListTree,
+  apt_key: KeySquare,
+  apt_repository: Layers,
+  // System & Services
+  service: Cog,
+  systemd: Server,
+  user: UserCog,
   group: Users2,
   hostname: Cpu,
   reboot: Power,
-  systemd: Server,
+  shutdown: Power,
   mount: HardDrive,
   selinux: ShieldAlert,
+  sysctl: Settings2,
+  cron: CalendarClock,
+  at: CalendarClock,
+  alternatives: Shuffle,
+  authorized_key: KeySquare,
+  known_hosts: ServerCog,
+  modprobe: Puzzle,
+  service_facts: ListTree,
+  capabilities: ShieldCheck,
+  pam_limits: Users,
+  // Networking
+  firewalld: ShieldCheck,
   ufw: Shield,
   iptables: Heater,
   nmcli: NetworkIcon,
+  get_url: DownloadCloud,
+  uri: Cloud,
+  nftables: Shield,
+  hostname_facts: Info,
+  interfaces_file: AlignCenter,
+  netplan: Route,
+  listen_ports_facts: Eye,
+  // Source Control
+  git: GitFork,
+  subversion: Workflow,
+  hg: Shuffle,
+  // Cloud Management
+  s3_bucket: CloudCog, // Generic, can be amazon.aws.s3_bucket
+  ec2_instance: Server, // Generic, can be amazon.aws.ec2_instance
+  rds_instance: Database, // Generic, can be amazon.aws.rds_instance
+  gcp_compute_instance: Server,
+  gcp_sql_instance: Database,
+  azure_rm_virtualmachine: Server,
+  azure_rm_storageaccount: CloudUpload,
+  docker_image: Container,
+  docker_container: Container,
+  docker_network: NetworkIcon,
+  docker_volume: HardDrive,
+  // Database Management
+  mysql_db: DatabaseZap,
+  mysql_user: UserCog,
+  postgresql_db: DatabaseZap,
+  postgresql_user: UserCog,
+  mongodb_user: UserCog,
+  redis_config: Settings2,
+  // Utilities & Execution
+  debug: TerminalSquare,
+  command: Shell,
   shell: TerminalSquare, // Already had Shell, using TerminalSquare for consistency
   script: FileCode,
+  raw: Lightbulb,
+  unarchive: ArchiveRestore,
   archive: ArchiveIcon,
   set_fact: SlidersHorizontal,
   fail: AlertCircle,
   assert: CheckCircle2,
   wait_for: Hourglass,
-  assemble: Files,
-  stat: FileSearch,
-  find: Search,
-  replace: Replace,
-  ini_file: FileCogIcon,
-  xml: Code,
-  uri: Cloud,
   slurp: FilePlus,
   setup: Info,
   include_role: ListChecks,
-  add_host: PackagePlus, // Re-using for add_host
-  pause: Puzzle,
+  import_role: ListChecks,
+  include_tasks: Braces,
+  import_tasks: Braces,
+  add_host: PackagePlus,
+  group_by: Layers,
+  pause: Hourglass,
+  meta: Workflow,
+  ping: TestTube2,
+  gather_facts: Info,
+  delegate_to: Waypoints,
+  run_once: MessageSquare,
+  tags: ToggleLeft,
+  // Default/Fallback
   default: Puzzle, 
 };
 
@@ -144,7 +212,11 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       const newParams = editableParameters.reduce((acc, p) => {
         const trimmedKey = p.key.trim();
         if (trimmedKey) {
-          acc[trimmedKey] = p.value; 
+          // Attempt to convert "true", "false", "yes", "no" to boolean, and numbers to numbers
+          if (trimmedKey.toLowerCase() === 'true' || trimmedKey.toLowerCase() === 'yes') acc[trimmedKey] = true;
+          else if (trimmedKey.toLowerCase() === 'false' || trimmedKey.toLowerCase() === 'no') acc[trimmedKey] = false;
+          else if (!isNaN(Number(p.value)) && p.value.trim() !== "") acc[trimmedKey] = Number(p.value);
+          else acc[trimmedKey] = p.value; 
         }
         return acc;
       }, {} as Record<string, any>);
@@ -164,7 +236,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
       ) : (
         <div className="space-y-2">
           {tasks.map((task, index) => {
-            const IconComponent = moduleIcons[task.module] || moduleIcons.default;
+            // Try to match full module name first (e.g., community.docker.docker_image), then fallback to base name (e.g., docker_image)
+            const IconComponent = moduleIcons[task.module] || moduleIcons[task.module.split('.').pop() || 'default'] || moduleIcons.default;
             return (
               <Card 
                 key={task.id} 
@@ -180,11 +253,11 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
                     <GripVertical className="w-4 h-4 text-muted-foreground" />
                   </Button>
                   <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
-                  <div className="flex-grow">
-                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight">{task.name}</CardTitle>
-                    <CardDescription className="text-xs">Module: {task.module}</CardDescription>
+                  <div className="flex-grow min-w-0">
+                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight truncate" title={task.name}>{task.name}</CardTitle>
+                    <CardDescription className="text-xs truncate" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
                   </div>
-                  <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     {!task.rawYAML && (
                       <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
                         <Edit3 className="w-3.5 h-3.5" />
@@ -252,7 +325,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask }: Task
                       />
                       <Input
                         aria-label="Parameter value"
-                        placeholder="Value"
+                        placeholder="Value (string, number, true/false, yes/no)"
                         value={param.value}
                         onChange={(e) => handleParameterPropertyChange(param.id, 'value', e.target.value)}
                         className="flex-1 text-sm"

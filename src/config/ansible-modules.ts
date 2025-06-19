@@ -5,108 +5,184 @@ import {
   DownloadCloud, ArchiveRestore, FileEdit, TextSelect, ShieldCheck, FilePlus, FolderOpen, FileSearch, 
   Replace, FileCog as FileCogIcon, FileSymlink, Archive as ArchiveIcon, PackagePlus, Box, Users2, Server, Power, 
   Network as NetworkIcon, ShieldAlert, Shield, FileCode, SlidersHorizontal, AlertCircle, CheckCircle2, Hourglass, Files, Search,
-  Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, Code
+  Database, Puzzle, Cpu, HardDrive, Heater, KeyRound, Cloud, Info, ListChecks, CodeXml, ExternalLink, CloudCog, DatabaseZap, TestTube2, MessageSquare, Eye,
+  Waypoints, CloudDownload, CloudUpload, Container, Workflow, Building, Globe, Lock, KeySquare, Layers, Route, Users, ServerCog, Wand2,
+  Shuffle, AlignCenter, Braces, SquareCode, Settings2, ToggleLeft, Lightbulb
 } from "lucide-react";
 
-const fileModules: AnsibleModuleDefinition[] = [
-  { id: 'file', module: 'file', name: 'Manage File/Directory', icon: FileText, description: 'Sets attributes of files, symlinks or directories.', defaultParameters: { path: "/path/to/file_or_dir", state: "touch" } },
-  { id: 'copy', module: 'copy', name: 'Copy File/Directory', icon: Copy, description: 'Copies files/directories to remote nodes.', defaultParameters: { src: "/local/path/to/source", dest: "/remote/path/to/destination" } },
-  { id: 'template', module: 'template', name: 'Template File', icon: FileJson2, description: 'Templates a file out to a remote server.', defaultParameters: { src: "template.j2", dest: "/remote/path/to/templated_file" } },
-  { id: 'lineinfile', module: 'lineinfile', name: 'Manage Line in File', icon: FileEdit, description: 'Ensure a line is in a file, or replace based on regex.', defaultParameters: { path: "/path/to/file", line: "text to ensure", state: "present" } },
-  { id: 'blockinfile', module: 'blockinfile', name: 'Manage Block in File', icon: TextSelect, description: 'Insert/update/remove a block of text in a file.', defaultParameters: { path: "/path/to/file", block: "# BEGIN ANSIBLE MANAGED BLOCK\n\n# END ANSIBLE MANAGED BLOCK", state: "present" } },
-  { id: 'assemble', module: 'assemble', name: 'Assemble File', icon: Files, description: 'Assembles a configuration file from fragments.', defaultParameters: { src: "/path/to/fragments_dir/", dest: "/remote/path/to/assembled_file" } },
-  { id: 'stat', module: 'stat', name: 'Get File Stats', icon: FileSearch, description: 'Retrieve file/path stats (exists, type, permissions).', defaultParameters: { path: "/path/to/file_or_dir" } },
-  { id: 'find', module: 'find', name: 'Find Files', icon: Search, description: 'Find files based on criteria.', defaultParameters: { paths: "/path/to/search", patterns: "*.conf" } },
-  { id: 'replace', module: 'replace', name: 'Replace String in File', icon: Replace, description: 'Replace all instances of a string in a file.', defaultParameters: { path: "/path/to/file", regexp: "old_string", replace: "new_string" } },
-  { id: 'ini_file', module: 'ini_file', name: 'Manage INI File', icon: FileCogIcon, description: 'Tweak settings in INI files.', defaultParameters: { path: "/path/to/config.ini", section: "main", option: "key", value: "value" } },
-  { id: 'xml', module: 'xml', name: 'Manage XML File', icon: FileCode, description: 'Manipulate XML files.', defaultParameters: { path: "/path/to/file.xml", xpath: "/root/element", value: "content" } },
+const fileManagementModules: AnsibleModuleDefinition[] = [
+  { id: 'file', module: 'file', name: 'Manage File/Directory', icon: FileText, description: 'Sets attributes of files, symlinks or directories, or creates/deletes them.', defaultParameters: { path: "/path/to/file_or_dir", state: "touch" } },
+  { id: 'copy', module: 'copy', name: 'Copy File/Directory', icon: Copy, description: 'Copies files/directories from local/remote to remote nodes.', defaultParameters: { src: "/local/path/to/source", dest: "/remote/path/to/destination" } },
+  { id: 'template', module: 'template', name: 'Template File', icon: FileJson2, description: 'Templates a file out to a remote server using Jinja2.', defaultParameters: { src: "template.j2", dest: "/remote/path/to/templated_file" } },
+  { id: 'lineinfile', module: 'lineinfile', name: 'Manage Line in File', icon: FileEdit, description: 'Ensure a line is in a file, or replace/remove based on regex.', defaultParameters: { path: "/path/to/file", line: "text_to_ensure = value", state: "present" } },
+  { id: 'blockinfile', module: 'blockinfile', name: 'Manage Block in File', icon: TextSelect, description: 'Insert/update/remove a block of multi-line text in a file.', defaultParameters: { path: "/path/to/file", block: "# BEGIN ANSIBLE MANAGED BLOCK\nconfig_option=true\n# END ANSIBLE MANAGED BLOCK", state: "present" } },
+  { id: 'assemble', module: 'assemble', name: 'Assemble File from Fragments', icon: Files, description: 'Assembles a configuration file from multiple fragment files.', defaultParameters: { src: "/path/to/fragments_dir/", dest: "/remote/path/to/assembled_file" } },
+  { id: 'stat', module: 'stat', name: 'Get File/Path Stats', icon: FileSearch, description: 'Retrieve file/path stats (exists, type, permissions, checksum).', defaultParameters: { path: "/path/to/file_or_dir" } },
+  { id: 'find', module: 'find', name: 'Find Files/Directories', icon: Search, description: 'Find files or directories based on various criteria.', defaultParameters: { paths: "/path/to/search", patterns: "*.log", age: "7d", age_stamp: "mtime" } },
+  { id: 'replace', module: 'replace', name: 'Replace String in File', icon: Replace, description: 'Replace all instances of a matched string or regex in a file.', defaultParameters: { path: "/path/to/file", regexp: "old_string_pattern", replace: "new_string" } },
+  { id: 'ini_file', module: 'ini_file', name: 'Manage INI File Entries', icon: FileCogIcon, description: 'Manage settings in INI-style configuration files.', defaultParameters: { path: "/path/to/config.ini", section: "main_settings", option: "key_name", value: "new_value", state: "present" } },
+  { id: 'xml', module: 'xml', name: 'Manage XML File Content', icon: CodeXml, description: 'Manipulate XML files (add, remove, modify elements/attributes).', defaultParameters: { path: "/path/to/file.xml", xpath: "/root/element[@name='target']", attribute: "value", value: "new_content" } },
+  { id: 'acl', module: 'acl', name: 'Manage File ACLs', icon: Lock, description: 'Set and retrieve file ACLs.', defaultParameters: { path: "/path/to/resource", entity: "user1", etype: "user", permissions: "rw", state: "present" } },
+  { id: 'tempfile', module: 'tempfile', name: 'Create Temporary File/Directory', icon: FilePlus, description: 'Creates temporary files and directories.', defaultParameters: { state: "file", suffix: "myapp" } },
+  { id: 'iso_extract', module: 'iso_extract', name: 'Extract ISO File', icon: Container, description: 'Extracts an ISO file to a directory.', defaultParameters: { image: "/path/to/image.iso", dest: "/mnt/iso_contents" } },
+  { id: 'patch', module: 'patch', name: 'Apply Patch File', icon: Wand2, description: 'Apply a patch to a file or directory tree.', defaultParameters: { src: "/path/to/patch.diff", dest: "/path/to/source_tree" } },
 ];
 
-const packageModules: AnsibleModuleDefinition[] = [
-  { id: 'apt', module: 'apt', name: 'APT Package', icon: Package, description: 'Manages apt packages (Debian/Ubuntu).', defaultParameters: { name: "package_name", state: "present" } },
-  { id: 'yum', module: 'yum', name: 'YUM Package', icon: Package, description: 'Manages packages with yum (RHEL/CentOS < 8).', defaultParameters: { name: "package_name", state: "present" } },
-  { id: 'dnf', module: 'dnf', name: 'DNF Package', icon: Package, description: 'Manages packages with dnf (Fedora, RHEL/CentOS >= 8).', defaultParameters: { name: "package_name", state: "present" } },
-  { id: 'pip', module: 'pip', name: 'PIP Package', icon: Box, description: 'Manages Python packages.', defaultParameters: { name: "python_package", state: "present" } },
-  { id: 'gem', module: 'gem', name: 'GEM Package', icon: Box, description: 'Manages Ruby gems.', defaultParameters: { name: "ruby_gem", state: "present" } },
-  { id: 'npm', module: 'npm', name: 'NPM Package', icon: Box, description: 'Manages Node.js packages.', defaultParameters: { name: "npm_package", path: "/path/to/project", state: "present" } },
-  { id: 'homebrew', module: 'homebrew', name: 'Homebrew Package', icon: PackagePlus, description: 'Manages packages with Homebrew (macOS).', defaultParameters: { name: "brew_package", state: "present" } },
+const packageManagementModules: AnsibleModuleDefinition[] = [
+  { id: 'package', module: 'package', name: 'Generic Package Manager', icon: Package, description: 'Manages packages using the auto-detected system package manager.', defaultParameters: { name: "package_name", state: "present" } },
+  { id: 'apt', module: 'apt', name: 'APT Package (Debian/Ubuntu)', icon: Package, description: 'Manages apt packages.', defaultParameters: { name: "nginx", state: "present", update_cache: "yes" } },
+  { id: 'yum', module: 'yum', name: 'YUM Package (RHEL/CentOS <8)', icon: Package, description: 'Manages packages with yum.', defaultParameters: { name: "httpd", state: "present" } },
+  { id: 'dnf', module: 'dnf', name: 'DNF Package (Fedora, RHEL >=8)', icon: Package, description: 'Manages packages with dnf.', defaultParameters: { name: "podman", state: "present" } },
+  { id: 'zypper', module: 'zypper', name: 'Zypper Package (openSUSE/SLES)', icon: Package, description: 'Manages packages with zypper.', defaultParameters: { name: "apache2", state: "present" } },
+  { id: 'pacman', module: 'pacman', name: 'Pacman Package (Arch Linux)', icon: Package, description: 'Manages packages with pacman.', defaultParameters: { name: "docker", state: "present" } },
+  { id: 'pip', module: 'pip', name: 'PIP Package (Python)', icon: Box, description: 'Manages Python packages.', defaultParameters: { name: "requests", version: "2.25.1", state: "present" } },
+  { id: 'gem', module: 'gem', name: 'GEM Package (Ruby)', icon: Box, description: 'Manages Ruby gems.', defaultParameters: { name: "rails", state: "present" } },
+  { id: 'npm', module: 'npm', name: 'NPM Package (Node.js)', icon: Box, description: 'Manages Node.js packages.', defaultParameters: { name: "express", path: "/path/to/project", state: "present" } },
+  { id: 'homebrew', module: 'homebrew', name: 'Homebrew Package (macOS)', icon: PackagePlus, description: 'Manages packages with Homebrew.', defaultParameters: { name: "htop", state: "present" } },
+  { id: 'snap', module: 'snap', name: 'Snap Package', icon: Container, description: 'Manages snap packages.', defaultParameters: { name: "code", classic: "yes", state: "present" } },
+  { id: 'flatpak', module: 'flatpak', name: 'Flatpak Package', icon: Container, description: 'Manages Flatpak applications.', defaultParameters: { name: "org.gimp.GIMP", state: "present" } },
   { id: 'package_facts', module: 'package_facts', name: 'Gather Package Facts', icon: ListTree, description: 'Gathers facts about installed packages.', defaultParameters: { manager: "auto" } },
+  { id: 'apt_key', module: 'apt_key', name: 'Manage APT Keys', icon: KeySquare, description: 'Add or remove APT keys.', defaultParameters: { url: "https://example.com/key.gpg", state: "present" } },
+  { id: 'apt_repository', module: 'apt_repository', name: 'Manage APT Repositories', icon: Layers, description: 'Add or remove APT repositories.', defaultParameters: { repo: "deb https://example.com/ubuntu focal main", state: "present" } },
 ];
 
 const systemServiceModules: AnsibleModuleDefinition[] = [
-  { id: 'service', module: 'service', name: 'Manage Service', icon: Cog, description: 'Manage services (initd, systemd, etc.).', defaultParameters: { name: "service_name", state: "started", enabled: "yes" } },
-  { id: 'systemd', module: 'systemd', name: 'Manage systemd Service', icon: Server, description: 'Control systemd units.', defaultParameters: { name: "service_name.service", state: "started", enabled: "yes", daemon_reload: "no" } },
-  { id: 'user', module: 'user', name: 'User Management', icon: UserCog, description: 'Manage user accounts.', defaultParameters: { name: "username", state: "present" } },
-  { id: 'group', module: 'group', name: 'Group Management', icon: Users2, description: 'Add or remove groups.', defaultParameters: { name: "groupname", state: "present" } },
-  { id: 'hostname', module: 'hostname', name: 'Manage Hostname', icon: Cpu, description: 'Manage system hostname.', defaultParameters: { name: "new_hostname" } },
-  { id: 'reboot', module: 'reboot', name: 'Reboot Machine', icon: Power, description: 'Reboot a machine, wait for it to come back.', defaultParameters: { reboot_timeout: 300 } },
-  { id: 'mount', module: 'mount', name: 'Manage Mount Points', icon: HardDrive, description: 'Control active and configured mount points.', defaultParameters: { path: "/mnt/data", src: "/dev/sdb1", fstype: "ext4", state: "mounted" } },
-  { id: 'selinux', module: 'selinux', name: 'Manage SELinux', icon: ShieldAlert, description: 'Manage SELinux state and policy.', defaultParameters: { policy: "targeted", state: "enforcing" } },
-  { id: 'cron', module: 'cron', name: 'Cron Job', icon: CalendarClock, description: 'Manage cron jobs.', defaultParameters: { name: "job_name", job: "/usr/local/bin/script.sh", minute: "0", hour: "0" } },
+  { id: 'service', module: 'service', name: 'Manage Service (Generic)', icon: Cog, description: 'Manage services (initd, systemd, etc.). Auto-detects service manager.', defaultParameters: { name: "sshd", state: "started", enabled: "yes" } },
+  { id: 'systemd', module: 'systemd', name: 'Manage systemd Service/Unit', icon: Server, description: 'Control systemd units (services, timers, sockets).', defaultParameters: { name: "nginx.service", state: "restarted", enabled: "yes", daemon_reload: "no" } },
+  { id: 'user', module: 'user', name: 'User Management', icon: UserCog, description: 'Manage user accounts and attributes.', defaultParameters: { name: "jdoe", comment: "Jane Doe", groups: "wheel,developers", state: "present" } },
+  { id: 'group', module: 'group', name: 'Group Management', icon: Users2, description: 'Add or remove groups.', defaultParameters: { name: "webadmins", system: "yes", state: "present" } },
+  { id: 'hostname', module: 'hostname', name: 'Manage Hostname', icon: Cpu, description: 'Manage system hostname.', defaultParameters: { name: "webserver01.example.com" } },
+  { id: 'reboot', module: 'reboot', name: 'Reboot Machine', icon: Power, description: 'Reboot a machine, optionally waiting for it to come back.', defaultParameters: { reboot_timeout: 600, test_command: "whoami" } },
+  { id: 'shutdown', module: 'shutdown', name: 'Shutdown Machine', icon: Power, description: 'Shutdown or power off machines.', defaultParameters: { delay: "+5" } },
+  { id: 'mount', module: 'mount', name: 'Manage Mount Points', icon: HardDrive, description: 'Control active and configured mount points (/etc/fstab).', defaultParameters: { path: "/mnt/data", src: "/dev/sdb1", fstype: "ext4", opts: "defaults,noatime", state: "mounted" } },
+  { id: 'selinux', module: 'selinux', name: 'Manage SELinux', icon: ShieldAlert, description: 'Manage SELinux state (enforcing, permissive, disabled) and booleans.', defaultParameters: { policy: "targeted", state: "enforcing" } },
+  { id: 'sysctl', module: 'sysctl', name: 'Manage Kernel Parameters (sysctl)', icon: Settings2, description: 'Configure kernel parameters using sysctl.', defaultParameters: { name: "net.ipv4.ip_forward", value: "1", sysctl_file: "/etc/sysctl.d/99-custom.conf", state: "present", reload: "yes" } },
+  { id: 'cron', module: 'cron', name: 'Manage Cron Jobs', icon: CalendarClock, description: 'Manage cron jobs for users.', defaultParameters: { name: "backup_script", job: "/usr/local/bin/backup.sh", minute: "0", hour: "2", user: "root" } },
+  { id: 'at', module: 'at', name: 'Schedule Ad-Hoc Tasks (at)', icon: CalendarClock, description: 'Schedule commands to be run once at a particular time.', defaultParameters: { command: "/usr/bin/updatedb", count: 1, units: "hours" } },
+  { id: 'alternatives', module: 'alternatives', name: 'Manage Symbolic Links (alternatives)', icon: Shuffle, description: 'Manages symbolic links using the alternatives system (e.g., for Java, GCC).', defaultParameters: { name: "java", path: "/usr/lib/jvm/java-11-openjdk-amd64/bin/java" } },
+  { id: 'authorized_key', module: 'authorized_key', name: 'Manage SSH Authorized Keys', icon: KeySquare, description: 'Adds or removes SSH authorized keys for users.', defaultParameters: { user: "deploy", key: "ssh-rsa AAAA...", state: "present" } },
+  { id: 'known_hosts', module: 'known_hosts', name: 'Manage SSH Known Hosts', icon: ServerCog, description: 'Add or remove host keys from SSH known_hosts.', defaultParameters: { name: "github.com", key: "github.com ssh-rsa AAAA...", state: "present" } },
+  { id: 'modprobe', module: 'modprobe', name: 'Manage Kernel Modules', icon: Puzzle, description: 'Add or remove kernel modules.', defaultParameters: { name: "btrfs", state: "present" } },
+  { id: 'service_facts', module: 'service_facts', name: 'Gather Service Facts', icon: ListTree, description: 'Return service state information as fact data.', defaultParameters: {} },
+  { id: 'capabilities', module: 'capabilities', name: 'Manage File Capabilities', icon: ShieldCheck, description: 'Manage POSIX capabilities on files.', defaultParameters: { path: "/usr/sbin/nginx", capability: "cap_net_bind_service+eip", state: "present" } },
+  { id: 'pam_limits', module: 'pam_limits', name: 'Manage PAM Limits', icon: Users, description: 'Modify PAM limits in /etc/security/limits.conf or /etc/security/limits.d/.', defaultParameters: { domain: "@users", limit_type: "soft", limit_item: "nofile", value: "65536" } },
 ];
 
-const networkModules: AnsibleModuleDefinition[] = [
-  { id: 'firewalld', module: 'firewalld', name: 'Firewalld Rule', icon: ShieldCheck, description: 'Manage firewall rules with firewalld.', defaultParameters: { port: "80/tcp", state: "enabled", permanent: "yes", immediate: "yes" } },
-  { id: 'ufw', module: 'ufw', name: 'UFW Rule', icon: Shield, description: 'Manage UFW firewall (Uncomplicated Firewall).', defaultParameters: { rule: "allow", port: "22", proto: "tcp" } },
-  { id: 'iptables', module: 'iptables', name: 'iptables Rule', icon: Heater, description: 'Manage iptables.', defaultParameters: { chain: "INPUT", protocol: "tcp", destination_port: "80", jump: "ACCEPT" } },
-  { id: 'nmcli', module: 'nmcli', name: 'NetworkManager Config', icon: NetworkIcon, description: 'Manage networking with NetworkManager.', defaultParameters: { conn_name: "eth0_static", ifname: "eth0", type: "ethernet", ip4: "192.168.1.100/24", gw4: "192.168.1.1" } },
-  { id: 'get_url', module: 'get_url', name: 'Download File (URL)', icon: DownloadCloud, description: 'Downloads files from HTTP, HTTPS, or FTP.', defaultParameters: { url: "https://example.com/file.zip", dest: "/tmp/file.zip" } },
+const networkingModules: AnsibleModuleDefinition[] = [
+  { id: 'firewalld', module: 'firewalld', name: 'Firewalld Rule/Service', icon: ShieldCheck, description: 'Manage firewall rules, services, and zones with firewalld.', defaultParameters: { service: "http", state: "enabled", permanent: "yes", immediate: "yes" } },
+  { id: 'ufw', module: 'ufw', name: 'UFW Rule (Uncomplicated Firewall)', icon: Shield, description: 'Manage UFW firewall rules.', defaultParameters: { rule: "allow", port: "80", proto: "tcp", comment: "Allow HTTP" } },
+  { id: 'iptables', module: 'iptables', name: 'iptables Rule', icon: Heater, description: 'Manage iptables rules (direct manipulation).', defaultParameters: { chain: "INPUT", protocol: "tcp", destination_port: "22", jump: "ACCEPT", comment: "Allow SSH" } },
+  { id: 'nmcli', module: 'nmcli', name: 'NetworkManager Configuration', icon: NetworkIcon, description: 'Manage networking with NetworkManager via nmcli.', defaultParameters: { conn_name: "Wired_connection_1", ifname: "eth0", type: "ethernet", state: "present", ip4: "192.168.1.100/24", gw4: "192.168.1.1" } },
+  { id: 'get_url', module: 'get_url', name: 'Download File (URL)', icon: DownloadCloud, description: 'Downloads files from HTTP, HTTPS, or FTP to remote nodes.', defaultParameters: { url: "https://example.com/software.tar.gz", dest: "/tmp/software.tar.gz", mode: "0644" } },
+  { id: 'uri', module: 'uri', name: 'Interact with Web Services/APIs', icon: Cloud, description: 'Interacts with HTTP and HTTPS web services or APIs.', defaultParameters: { url: "https://api.example.com/status", method: "GET", return_content: "yes", status_code: [200, 201] } },
+  { id: 'nftables', module: 'nftables', name: 'nftables Rule', icon: Shield, description: 'Manage nftables rules.', defaultParameters: { table: "inet-filter", chain: "input", rule: "tcp dport ssh accept", state: "present" } },
+  { id: 'hostname_facts', module: 'hostname_facts', name: 'Gather Hostname Facts', icon: Info, description: 'Gathers facts about the system hostname.', defaultParameters: {} },
+  { id: 'interfaces_file', module: 'interfaces_file', name: 'Manage Network Interfaces File (Debian)', icon: AlignCenter, description: 'Manages /etc/network/interfaces file on Debian-based systems.', defaultParameters: { name: "eth1", type: "static", address: "10.0.0.10/24", gateway: "10.0.0.1" } },
+  { id: 'netplan', module: 'netplan', name: 'Configure Netplan (Ubuntu)', icon: Route, description: 'Configure netplan network settings on Ubuntu.', defaultParameters: { config_file: "/etc/netplan/01-custom.yaml", definition: { network: { version: 2, ethernets: { eth0: { dhcp4: true } } } } } },
+  { id: 'listen_ports_facts', module: 'listen_ports_facts', name: 'Gather Listening Ports Facts', icon: Eye, description: 'Gathers facts about listening TCP and UDP ports.', defaultParameters: {} },
 ];
 
 const sourceControlModules: AnsibleModuleDefinition[] = [
-  { id: 'git', module: 'git', name: 'Git Repository', icon: GitFork, description: 'Deploy software from Git repositories.', defaultParameters: { repo: "https://github.com/user/repo.git", dest: "/srv/myapp" } },
+  { id: 'git', module: 'git', name: 'Git Repository Management', icon: GitFork, description: 'Deploy software from Git repositories (clone, update, checkout).', defaultParameters: { repo: "https://github.com/user/repo.git", dest: "/srv/myapp", version: "main", force: "yes" } },
+  { id: 'subversion', module: 'subversion', name: 'Subversion (SVN) Repository', icon: Workflow, description: 'Manages Subversion (SVN) checkouts.', defaultParameters: { repo: "svn://svn.example.com/project/trunk", dest: "/srv/myproject", state: "checkout" } },
+  { id: 'hg', module: 'hg', name: 'Mercurial (hg) Repository', icon: Shuffle, description: 'Manages Mercurial (hg) repositories.', defaultParameters: { repo: "https://hg.example.com/myrepo", dest: "/srv/myrepo" } },
 ];
 
-const utilityModules: AnsibleModuleDefinition[] = [
-  { id: 'debug', module: 'debug', name: 'Debug Message', icon: TerminalSquare, description: 'Print statements during execution.', defaultParameters: { msg: "Hello world" } },
-  { id: 'command', module: 'command', name: 'Execute Command', icon: Shell, description: 'Executes a command on the remote node (not through shell).', defaultParameters: { cmd: "ls -l /tmp" } },
-  { id: 'shell', module: 'shell', name: 'Execute Shell Command', icon: TerminalSquare, description: 'Executes commands in a shell on the remote node.', defaultParameters: { cmd: "echo $HOME" } },
-  { id: 'script', module: 'script', name: 'Run Local Script', icon: FileCode, description: 'Runs a local script on a remote node after transferring it.', defaultParameters: { cmd: "/path/to/local_script.sh arg1 arg2" } },
-  { id: 'unarchive', module: 'unarchive', name: 'Unarchive File', icon: ArchiveRestore, description: 'Unpacks an archive (e.g., .zip, .tar.gz).', defaultParameters: { src: "/tmp/archive.zip", dest: "/opt/", remote_src: "no" } },
-  { id: 'archive', module: 'archive', name: 'Create Archive', icon: ArchiveIcon, description: 'Creates a compressed archive of files.', defaultParameters: { path: "/srv/app_backup/*", dest: "/tmp/app_backup.tar.gz", format: "gz" } },
-  { id: 'set_fact', module: 'set_fact', name: 'Set Fact', icon: SlidersHorizontal, description: 'Set new variables (facts) in the play.', defaultParameters: { my_custom_fact: "some_value" } },
-  { id: 'fail', module: 'fail', name: 'Fail Play', icon: AlertCircle, description: 'Fail the play with a custom message.', defaultParameters: { msg: "A critical condition was not met." } },
-  { id: 'assert', module: 'assert', name: 'Assert Condition', icon: CheckCircle2, description: 'Asserts given expressions are true.', defaultParameters: { that: "ansible_distribution == 'Ubuntu'", fail_msg: "This playbook is only for Ubuntu.", success_msg: "Distribution is Ubuntu." } },
-  { id: 'wait_for', module: 'wait_for', name: 'Wait For Condition', icon: Hourglass, description: 'Waits for a condition before continuing.', defaultParameters: { host: "localhost", port: 8080, state: "started", delay: 5, timeout: 300 } },
-  { id: 'uri', module: 'uri', name: 'Interact with Web Services', icon: Cloud, description: 'Interacts with HTTP and HTTPS web services.', defaultParameters: { url: "https://api.example.com/status", method: "GET", return_content: "yes"} },
-  { id: 'slurp', module: 'slurp', name: 'Slurp File from Remote', icon: FilePlus, description: 'Slurps a file from remote nodes.', defaultParameters: { src: "/remote/path/to/file"} },
-  { id: 'setup', module: 'setup', name: 'Gather Facts', icon: Info, description: 'Gathers facts about remote hosts.', defaultParameters: { filter: "ansible_*" } },
-  { id: 'include_role', module: 'include_role', name: 'Include Role', icon: ListChecks, description: 'Load and execute a role.', defaultParameters: { name: "common_role" } },
-  { id: 'add_host', module: 'add_host', name: 'Add Host to Inventory', icon: PackagePlus, description: 'Add a host (and alternatively a group) to the ansible-playbook in-memory inventory.', defaultParameters: { name: "new_host_alias", groups: "new_group", ansible_host: "192.168.10.50"} },
-  { id: 'pause', module: 'pause', name: 'Pause Playbook', icon: Puzzle, description: 'Pauses playbook execution for a set amount of time or until a prompt is acknowledged.', defaultParameters: { minutes: 1, prompt: "Continue?" } },
+const cloudManagementModules: AnsibleModuleDefinition[] = [
+  // AWS
+  { id: 'aws_s3_bucket', module: 'amazon.aws.s3_bucket', name: 'AWS S3 Bucket', icon: CloudCog, description: 'Manage S3 buckets in AWS.', defaultParameters: { name: "my-unique-bucket-name", state: "present", region: "us-east-1" } },
+  { id: 'ec2_instance', module: 'amazon.aws.ec2_instance', name: 'AWS EC2 Instance', icon: Server, description: 'Create, terminate, start, or stop EC2 instances.', defaultParameters: { name: "my-instance", image_id: "ami-xxxxxxxxxxxxxxxxx", instance_type: "t2.micro", state: "present", region: "us-east-1" } },
+  { id: 'rds_instance', module: 'amazon.aws.rds_instance', name: 'AWS RDS Instance', icon: Database, description: 'Manage RDS database instances.', defaultParameters: { db_instance_identifier: "my-db", db_instance_class: "db.t3.micro", engine: "mysql", allocated_storage: 20, state: "present", region: "us-east-1" } },
+  // GCP
+  { id: 'gcp_compute_instance', module: 'google.cloud.gcp_compute_instance', name: 'GCP Compute Instance', icon: Server, description: 'Creates a GCP compute instance.', defaultParameters: { name: "my-gcp-instance", machine_type: "e2-medium", zone: "us-central1-a", project: "gcp-project-id", auth_kind: "serviceaccount", service_account_file: "/path/to/sa.json" } },
+  { id: 'gcp_sql_instance', module: 'google.cloud.gcp_sql_instance', name: 'GCP SQL Instance', icon: Database, description: 'Creates a GCP Cloud SQL instance.', defaultParameters: { name: "my-gcp-db", region: "us-central1", settings: { tier: "db-f1-micro" }, project: "gcp-project-id", auth_kind: "serviceaccount" } },
+  // Azure
+  { id: 'azure_rm_virtualmachine', module: 'azure.azcollection.azure_rm_virtualmachine', name: 'Azure VM', icon: Server, description: 'Manage Azure Virtual Machines.', defaultParameters: { resource_group: "myResourceGroup", name: "myVM", vm_size: "Standard_DS1_v2", admin_username: "azureuser" } },
+  { id: 'azure_rm_storageaccount', module: 'azure.azcollection.azure_rm_storageaccount', name: 'Azure Storage Account', icon: CloudUpload, description: 'Manage Azure Storage Accounts.', defaultParameters: { resource_group: "myResourceGroup", name: "mystorageaccount", account_type: "Standard_LRS" } },
+  // Docker
+  { id: 'docker_image', module: 'community.docker.docker_image', name: 'Docker Image Management', icon: Container, description: 'Build, pull, or manage Docker images.', defaultParameters: { name: "nginx", source: "pull", state: "present" } },
+  { id: 'docker_container', module: 'community.docker.docker_container', name: 'Docker Container Management', icon: Container, description: 'Manage Docker containers.', defaultParameters: { name: "my_web_server", image: "nginx:latest", state: "started", ports: ["8080:80"] } },
+  { id: 'docker_network', module: 'community.docker.docker_network', name: 'Docker Network Management', icon: NetworkIcon, description: 'Manage Docker networks.', defaultParameters: { name: "my_app_network", state: "present" } },
+  { id: 'docker_volume', module: 'community.docker.docker_volume', name: 'Docker Volume Management', icon: HardDrive, description: 'Manage Docker volumes.', defaultParameters: { name: "my_data_volume", state: "present" } },
 ];
 
+const databaseManagementModules: AnsibleModuleDefinition[] = [
+  { id: 'mysql_db', module: 'community.mysql.mysql_db', name: 'MySQL Database', icon: DatabaseZap, description: 'Create or delete MySQL databases.', defaultParameters: { name: "mydatabase", state: "present", login_user: "root", login_password: "password" } },
+  { id: 'mysql_user', module: 'community.mysql.mysql_user', name: 'MySQL User', icon: UserCog, description: 'Manage MySQL users and their privileges.', defaultParameters: { name: "dbuser", password: "userpass", priv: "*.*:ALL", state: "present" } },
+  { id: 'postgresql_db', module: 'community.postgresql.postgresql_db', name: 'PostgreSQL Database', icon: DatabaseZap, description: 'Create or delete PostgreSQL databases.', defaultParameters: { name: "mydatabase", state: "present", login_user: "postgres" } },
+  { id: 'postgresql_user', module: 'community.postgresql.postgresql_user', name: 'PostgreSQL User', icon: UserCog, description: 'Manage PostgreSQL users and their privileges.', defaultParameters: { name: "dbuser", password: "userpass", state: "present" } },
+  { id: 'mongodb_user', module: 'community.mongodb.mongodb_user', name: 'MongoDB User', icon: UserCog, description: 'Manages MongoDB users.', defaultParameters: { login_database: "admin", name: "mongouser", password: "userpass", roles: [{db: "mydatabase", role: "readWrite"}], state: "present" } },
+  { id: 'redis_config', module: 'community.general.redis_config', name: 'Redis Configuration', icon: Settings2, description: 'Manages Redis configuration settings.', defaultParameters: { parameter: "maxmemory", value: "2gb" } },
+];
+
+const utilityExecutionModules: AnsibleModuleDefinition[] = [
+  { id: 'debug', module: 'debug', name: 'Debug Message/Variable', icon: TerminalSquare, description: 'Print statements or variable values during execution.', defaultParameters: { msg: "Current value of my_var is {{ my_var }}" } },
+  { id: 'command', module: 'command', name: 'Execute Command (Non-Shell)', icon: Shell, description: 'Executes a command on the remote node (not through a shell).', defaultParameters: { cmd: "/usr/bin/uptime", warn: "no" } },
+  { id: 'shell', module: 'shell', name: 'Execute Shell Command', icon: TerminalSquare, description: 'Executes commands in a shell on the remote node.', defaultParameters: { cmd: "echo $HOSTNAME > /tmp/hostname.txt", executable: "/bin/bash" } },
+  { id: 'script', module: 'script', name: 'Run Local Script on Remote', icon: FileCode, description: 'Runs a local script on a remote node after transferring it.', defaultParameters: { cmd: "/path/to/local_script.sh arg1 arg2" } },
+  { id: 'raw', module: 'raw', name: 'Execute Raw Command (Low-Level)', icon: Lightbulb, description: 'Executes a low-down and dirty SSH command, not going through the module subsystem.', defaultParameters: { cmd: "sudo apt-get update -y" } },
+  { id: 'unarchive', module: 'unarchive', name: 'Unarchive File', icon: ArchiveRestore, description: 'Unpacks an archive (e.g., .zip, .tar.gz) on the remote node.', defaultParameters: { src: "/tmp/archive.zip", dest: "/opt/", remote_src: "no" } },
+  { id: 'archive', module: 'archive', name: 'Create Archive', icon: ArchiveIcon, description: 'Creates a compressed archive of files from the remote node.', defaultParameters: { path: "/var/log/myapp/*", dest: "/tmp/myapp_logs.tar.gz", format: "gz" } },
+  { id: 'set_fact', module: 'set_fact', name: 'Set Fact (Variable)', icon: SlidersHorizontal, description: 'Set new variables (facts) in the play dynamically.', defaultParameters: { my_custom_fact: "some_dynamic_value", cacheable: "yes" } },
+  { id: 'fail', module: 'fail', name: 'Fail Playbook', icon: AlertCircle, description: 'Fail the play with a custom message if a condition is not met.', defaultParameters: { msg: "A critical condition was not met. Halting execution." } },
+  { id: 'assert', module: 'assert', name: 'Assert Condition', icon: CheckCircle2, description: 'Asserts given expressions are true, fails if not.', defaultParameters: { that: "ansible_distribution == 'Ubuntu' and ansible_distribution_version == '22.04'", fail_msg: "This role requires Ubuntu 22.04.", success_msg: "System is Ubuntu 22.04." } },
+  { id: 'wait_for', module: 'wait_for', name: 'Wait For Condition/Port', icon: Hourglass, description: 'Waits for a condition (e.g., port open, file exists, string in output) before continuing.', defaultParameters: { host: "db.example.com", port: 3306, state: "started", delay: 5, timeout: 300, msg: "Waiting for database server to be ready..." } },
+  { id: 'slurp', module: 'slurp', name: 'Slurp File Content to Fact', icon: FilePlus, description: 'Slurps a file from remote nodes into a registered variable.', defaultParameters: { src: "/etc/os-release" } },
+  { id: 'setup', module: 'setup', name: 'Gather Facts (Explicitly)', icon: Info, description: 'Gathers facts about remote hosts. Usually run implicitly.', defaultParameters: { filter: "ansible_distribution*", gather_subset: "!all,min" } },
+  { id: 'include_role', module: 'include_role', name: 'Include Role Dynamically', icon: ListChecks, description: 'Load and execute an Ansible role dynamically.', defaultParameters: { name: "common_setup_role" } },
+  { id: 'import_role', module: 'import_role', name: 'Import Role Statically', icon: ListChecks, description: 'Load and execute an Ansible role statically at parse time.', defaultParameters: { name: "security_hardening" } },
+  { id: 'include_tasks', module: 'include_tasks', name: 'Include Task File Dynamically', icon: Braces, description: 'Includes a file with a list of tasks dynamically.', defaultParameters: { file: "setup_users.yml" } },
+  { id: 'import_tasks', module: 'import_tasks', name: 'Import Task File Statically', icon: Braces, description: 'Imports a file with a list of tasks statically at parse time.', defaultParameters: { file: "configure_firewall.yml" } },
+  { id: 'add_host', module: 'add_host', name: 'Add Host to Inventory (In-Memory)', icon: PackagePlus, description: 'Add a host (and optionally groups) to the ansible-playbook in-memory inventory.', defaultParameters: { name: "new_dynamic_host", groups: "webservers,production", ansible_host: "10.0.1.50"} },
+  { id: 'group_by', module: 'group_by', name: 'Group Hosts (In-Memory)', icon: Layers, description: 'Create new groups in inventory based on variables.', defaultParameters: { key: "os_{{ ansible_facts.distribution }}" } },
+  { id: 'pause', module: 'pause', name: 'Pause Playbook Execution', icon: Hourglass, description: 'Pauses playbook execution for a set amount of time or until a prompt is acknowledged.', defaultParameters: { minutes: 1, prompt: "Review the previous steps. Press Enter to continue or Ctrl+C and A to abort." } },
+  { id: 'meta', module: 'meta', name: 'Execute Ansible Meta Actions', icon: Workflow, description: 'Executes Ansible meta actions like flush_handlers, refresh_inventory, end_play.', defaultParameters: { action: "flush_handlers" } },
+  { id: 'ping', module: 'ping', name: 'Ping Hosts', icon: TestTube2, description: 'Try to connect to host, verify a usable python and return pong on success.', defaultParameters: {} },
+  { id: 'gather_facts', module: 'gather_facts', name: 'Control Fact Gathering', icon: Info, description: 'Explicitly controls fact gathering for a play.', defaultParameters: { enabled: "no" } }, // 'enabled' is not a direct param, it's usually a play-level keyword. This is a representation.
+  { id: 'delegate_to', module: 'delegate_to', name: 'Delegate Task', icon: Waypoints, description: 'Run a task on a different host than the current target.', defaultParameters: { host: "localhost" } }, // This is a keyword, not a module. Representing as a conceptual module for UI.
+  { id: 'run_once', module: 'run_once', name: 'Run Task Once', icon: MessageSquare, description: 'Run a task only on the first host in the current batch.', defaultParameters: { enabled: "yes" } }, // This is a keyword, not a module.
+  { id: 'tags', module: 'tags', name: 'Tag Management', icon: ToggleLeft, description: 'Add tags to tasks or plays for selective execution.', defaultParameters: { names: ["configuration", "security"]}}, // Keyword
+];
 
 export const moduleGroups: AnsibleModuleGroup[] = [
   { 
     name: "File Management", 
     icon: FolderOpen, 
-    modules: fileModules 
+    modules: fileManagementModules 
   },
   { 
     name: "Package Management", 
     icon: Package, 
-    modules: packageModules 
+    modules: packageManagementModules 
   },
   { 
     name: "System & Services", 
-    icon: Server, 
+    icon: ServerCog, 
     modules: systemServiceModules 
   },
   { 
     name: "Networking", 
-    icon: NetworkIcon, 
-    modules: networkModules 
+    icon: Globe, 
+    modules: networkingModules 
   },
   { 
     name: "Source Control", 
     icon: GitFork, 
     modules: sourceControlModules 
   },
+  {
+    name: "Cloud Management",
+    icon: CloudCog,
+    modules: cloudManagementModules
+  },
+  {
+    name: "Database Management",
+    icon: Database,
+    modules: databaseManagementModules
+  },
   { 
     name: "Utilities & Execution", 
-    icon: Cog, 
-    modules: utilityModules 
+    icon: SquareCode, 
+    modules: utilityExecutionModules 
   },
 ];
-
