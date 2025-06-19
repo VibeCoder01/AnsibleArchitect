@@ -109,7 +109,7 @@ export function AnsibleArchitectLayout() {
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
   const [col1Width, setCol1Width] = React.useState(350); 
-  const [col2Width, setCol2Width] = React.useState(350); 
+  const [col2Width, setCol2Width] = React.useState(450); 
 
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
   const [startX, setStartX] = React.useState(0);
@@ -145,7 +145,6 @@ export function AnsibleArchitectLayout() {
         }
       } catch (error) {
         console.error("Error parsing playbooks from localStorage:", error);
-        // Fall through to create default if parsing fails or data is invalid
       }
     }
   
@@ -157,11 +156,11 @@ export function AnsibleArchitectLayout() {
   
     setPlaybooks(initialPlaybooks);
     setActivePlaybookId(initialActiveId);
-    setIsClientReady(true); // Signal that client-side initialization is complete
-  }, []); // Empty dependency array ensures this runs once on client mount
+    setIsClientReady(true);
+  }, []); 
 
   React.useEffect(() => {
-    if (!isClientReady) return; // Don't save to localStorage until client is ready
+    if (!isClientReady) return; 
 
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
@@ -412,7 +411,7 @@ export function AnsibleArchitectLayout() {
     toast({ title: "New Playbook", description: `"${newPBook.name}" created and activated.`});
   };
 
-  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent) => {
+  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
     if (!isClientReady) return;
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
@@ -421,18 +420,13 @@ export function AnsibleArchitectLayout() {
       const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
       if (remainingPlaybooks.length === 0) {
         const newDefault = createNewPlaybook("Default Playbook");
-        setActivePlaybookId(newDefault.id); // Set active ID before returning new array
+        setActivePlaybookId(newDefault.id); 
         return [newDefault];
       }
       if (activePlaybookId === playbookIdToClose) {
         const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        // Determine new active ID *before* filtering 'prev'
-        let newActiveId = remainingPlaybooks[0].id; // Default to first remaining
-        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { // Check against original length of remaining
-             // If closed tab was not the first, try to activate the one before it IN THE ORIGINAL LIST.
-             // This requires finding the equivalent in remainingPlaybooks or defaulting.
-             // Find index in 'prev' (original list), then try to get 'prev[closedTabIndex-1].id'
-             // if it exists in 'remainingPlaybooks'.
+        let newActiveId = remainingPlaybooks[0].id; 
+        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { 
             const potentialPrevPlaybook = prev[closedTabIndex -1];
             if (remainingPlaybooks.some(r => r.id === potentialPrevPlaybook.id)) {
                 newActiveId = potentialPrevPlaybook.id;
@@ -447,7 +441,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent) => {
+  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
     if (!isClientReady) return;
     setRenamingPlaybookId(playbookId);
@@ -472,25 +466,22 @@ export function AnsibleArchitectLayout() {
     return <div className="flex h-screen items-center justify-center bg-background text-foreground">Loading playbooks...</div>;
   }
 
-  // At this point, isClientReady is true, so playbooks and activePlaybookId should be set.
-  // The activePlaybook variable itself might still be null for a brief moment if setActivePlaybookId
-  // hasn't fully propagated. The check below is a safeguard.
   if (!activePlaybook && playbooks.length > 0) {
-    // This case should ideally be less frequent with the new isClientReady logic,
-    // but it can happen if activePlaybookId somehow becomes invalid.
-    // Re-evaluate if this is still necessary or if it can be removed.
-    // For now, keeping it to ensure an active playbook is selected if possible.
-    console.warn("Attempting to re-sync active playbook ID.");
-    setActivePlaybookId(playbooks[0].id); // setActivePlaybookId will trigger a re-render
-    return <div className="flex h-screen items-center justify-center bg-background text-foreground">Re-initializing active playbook...</div>;
+     console.warn("Active playbook ID became invalid or playbooks array changed without updating active ID. Re-syncing.");
+     setActivePlaybookId(playbooks[0].id);
+     return <div className="flex h-screen items-center justify-center bg-background text-foreground">Re-initializing active playbook...</div>;
   }
   
   if (!activePlaybook) {
-    // This means playbooks array is empty or activePlaybookId is truly invalid and no playbooks exist.
-    // This should be very rare after the initial useEffect.
-    // A more robust solution might be to create a new default playbook here if playbooks is empty.
-     console.error("Critical: No active playbook and no playbooks available after client ready.");
-     return <div className="flex h-screen items-center justify-center bg-background text-red-500">Error: No playbook available. Please refresh.</div>;
+     console.error("Critical: No active playbook and no playbooks available after client ready state. This may indicate an issue with initial playbook creation or localStorage state.");
+     // Attempt to create a default playbook as a last resort
+     if (playbooks.length === 0) {
+        const defaultPlaybook = createNewPlaybook("Emergency Default Playbook");
+        setPlaybooks([defaultPlaybook]);
+        setActivePlaybookId(defaultPlaybook.id);
+        return <div className="flex h-screen items-center justify-center bg-background text-orange-500">No playbooks found, created a default. Please reload if issues persist.</div>;
+     }
+     return <div className="flex h-screen items-center justify-center bg-background text-red-500">Error: No playbook available. Please refresh or check console.</div>;
   }
 
 
@@ -510,7 +501,7 @@ export function AnsibleArchitectLayout() {
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
       <Tabs
-        value={activePlaybookId || ""} // Ensure value is always a string
+        value={activePlaybookId || ""} 
         onValueChange={setActivePlaybookId}
         className="flex flex-col flex-1 min-w-0 min-h-0" 
       >
@@ -528,10 +519,14 @@ export function AnsibleArchitectLayout() {
                     variant="ghost"
                     size="icon"
                     className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
-                    onClick={(e) => openRenameModal(p.id, p.name, e as unknown as React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLSpanElement>)}
                     aria-label="Rename playbook"
                   >
-                    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}>
+                    <span 
+                        role="button" 
+                        tabIndex={0} 
+                        onClick={(e) => openRenameModal(p.id, p.name, e)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}
+                    >
                       <Edit2 className="w-3 h-3" />
                     </span>
                   </Button>
@@ -540,10 +535,14 @@ export function AnsibleArchitectLayout() {
                     variant="ghost"
                     size="icon"
                     className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                    onClick={(e) => handleClosePlaybook(p.id, e as unknown as React.MouseEvent<HTMLButtonElement> | React.KeyboardEvent<HTMLSpanElement>)}
                     aria-label="Close playbook"
                   >
-                     <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}>
+                     <span 
+                        role="button" 
+                        tabIndex={0} 
+                        onClick={(e) => handleClosePlaybook(p.id, e)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}
+                    >
                        <X className="w-3 h-3" />
                     </span>
                   </Button>
@@ -560,7 +559,7 @@ export function AnsibleArchitectLayout() {
             <TabsContent
                 key={p.id}
                 value={p.id}
-                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0" // Ensure mt-0 here as well
+                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0" 
             >
                 <div
                 style={{ flex: `0 0 ${col2Width}px` }}
