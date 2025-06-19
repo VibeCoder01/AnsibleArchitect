@@ -12,7 +12,7 @@ const Tabs = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Root
     ref={ref}
-    className={cn("flex flex-col min-h-0", className)} // Added flex flex-col for proper layout with flex-grow content
+    className={cn("flex flex-col min-h-0", className)} 
     {...props}
   />
 ));
@@ -26,7 +26,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto", // Ensure list can scroll if many tabs
+      "inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground overflow-x-auto", 
       className
     )}
     {...props}
@@ -56,7 +56,9 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-grow min-h-0", // Removed mt-2 and added min-h-0
+      "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      // Consumer will handle layout specifics like display, flex-grow, min-h-0, and visibility based on state.
+      // Radix UI's <Tabs.Content> will also apply data-state attributes which can be used for styling.
       className
     )}
     {...props}
@@ -65,4 +67,3 @@ const TabsContent = React.forwardRef<
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
 export { Tabs, TabsList, TabsTrigger, TabsContent }
-

@@ -409,7 +409,7 @@ export function AnsibleArchitectLayout() {
       }
       if (activePlaybookId === playbookIdToClose) {
         const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        if (closedTabIndex > 0) { 
+        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { 
             setActivePlaybookId(prev[closedTabIndex -1].id);
         } else { 
             setActivePlaybookId(remainingPlaybooks[0].id);
@@ -445,7 +445,10 @@ export function AnsibleArchitectLayout() {
      setActivePlaybookId(playbooks[0].id);
      return <div className="flex h-screen items-center justify-center">Initializing...</div>;
   }
-  if (!activePlaybook && playbooks.length === 0) {
+  if (!activePlaybook && playbooks.length === 0) { // Should be caught by init, but defensive
+      const defaultPlaybook = createNewPlaybook("Default Playbook");
+      setPlaybooks([defaultPlaybook]);
+      setActivePlaybookId(defaultPlaybook.id);
       return <div className="flex h-screen items-center justify-center">Loading playbooks...</div>;
   }
 
@@ -510,52 +513,54 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-4 h-4" />
           </Button>
         </div>
-
-        {playbooks.map(p => (
-          <TabsContent
-            key={p.id}
-            value={p.id}
-            className="flex-grow flex min-w-0 min-h-0 mt-0 rounded-b-lg overflow-hidden"
-          >
-            <div
-              style={{ flex: `0 0 ${col2Width}px` }}
-              onDrop={handleDropOnTaskList}
-              onDragOver={handleDragOverTaskList}
-              onDragLeave={handleDragLeaveTaskList}
-              className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
-              aria-dropeffect="copy"
+        
+        <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
+            {playbooks.map(p => (
+            <TabsContent
+                key={p.id}
+                value={p.id}
+                className="absolute inset-0 flex data-[state=inactive]:hidden"
             >
-              <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-              <div className="flex-grow overflow-hidden p-3">
-                <TaskList
-                  tasks={p.tasks}
-                  onUpdateTask={updateTaskInActivePlaybook}
-                  onDeleteTask={deleteTaskInActivePlaybook}
-                  onMoveTask={moveTaskInActivePlaybook}
-                  definedRoles={definedRoles}
-                  hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                  onSetHoveredTaskId={setHoveredTaskId}
-                />
-              </div>
-            </div>
+                <div
+                style={{ flex: `0 0 ${col2Width}px` }}
+                onDrop={handleDropOnTaskList}
+                onDragOver={handleDragOverTaskList}
+                onDragLeave={handleDragLeaveTaskList}
+                className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+                aria-dropeffect="copy"
+                >
+                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+                <div className="flex-grow overflow-hidden p-3">
+                    <TaskList
+                    tasks={p.tasks}
+                    onUpdateTask={updateTaskInActivePlaybook}
+                    onDeleteTask={deleteTaskInActivePlaybook}
+                    onMoveTask={moveTaskInActivePlaybook}
+                    definedRoles={definedRoles}
+                    hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                    onSetHoveredTaskId={setHoveredTaskId}
+                    />
+                </div>
+                </div>
 
-            <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+                <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
-            <div
-              style={{ flex: '1 1 0%' }} 
-              className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
-            >
-              <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-              <div className="flex-grow overflow-hidden">
-                <YamlDisplay
-                  yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
-                  hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                  onSetHoveredSegmentId={setHoveredTaskId}
-                />
-              </div>
-            </div>
-          </TabsContent>
-        ))}
+                <div
+                style={{ flex: '1 1 0%' }} 
+                className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                >
+                <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
+                <div className="flex-grow overflow-hidden">
+                    <YamlDisplay
+                    yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
+                    hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                    onSetHoveredSegmentId={setHoveredTaskId}
+                    />
+                </div>
+                </div>
+            </TabsContent>
+            ))}
+        </div>
       </Tabs>
 
       <div className="w-64 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
@@ -667,5 +672,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
-    
