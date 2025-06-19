@@ -26,7 +26,7 @@ const fileManagementModules: AnsibleModuleDefinition[] = [
   { id: 'tempfile', module: 'ansible.builtin.tempfile', name: 'Create Temporary File/Directory', icon: FilePlus, description: 'Creates temporary files and directories.', defaultParameters: { state: "file", suffix: "myapp" } },
   { id: 'iso_extract', module: 'community.general.iso_extract', name: 'Extract ISO File', icon: Container, description: 'Extracts an ISO file to a directory.', defaultParameters: { image: "/path/to/image.iso", dest: "/mnt/iso_contents" } },
   { id: 'patch', module: 'ansible.builtin.patch', name: 'Apply Patch File', icon: Wand2, description: 'Apply a patch to a file or directory tree.', defaultParameters: { src: "/path/to/patch.diff", dest: "/path/to/source_tree" } },
-  { id: 'synchronize', module: 'ansible.posix.synchronize', name: 'Synchronize Files/Directories', icon: RefreshCw, description: 'Synchronize content between hosts using rsync.', defaultParameters: { mode: "push", src: "/local/path/", dest: "/remote/path/" } },
+  { id: 'synchronize', module: 'ansible.posix.synchronize', name: 'Synchronize Files (rsync)', icon: RefreshCw, description: 'Efficiently synchronize files/directories using rsync.', defaultParameters: { mode: "push", src: "/local/path/", dest: "/remote/path/" } },
 ];
 
 const packageManagementModules: AnsibleModuleDefinition[] = [
@@ -67,8 +67,8 @@ const systemServiceModules: AnsibleModuleDefinition[] = [
   { id: 'service_facts', module: 'ansible.builtin.service_facts', name: 'Gather Service Facts', icon: ListTree, description: 'Return service state information as fact data.', defaultParameters: {} },
   { id: 'capabilities', module: 'community.general.capabilities', name: 'Manage File Capabilities', icon: ShieldCheck, description: 'Manage POSIX capabilities on files.', defaultParameters: { path: "/usr/sbin/nginx", capability: "cap_net_bind_service+eip", state: "present" } },
   { id: 'pam_limits', module: 'community.general.pam_limits', name: 'Manage PAM Limits', icon: Users, description: 'Modify PAM limits in /etc/security/limits.conf or /etc/security/limits.d/.', defaultParameters: { domain: "@users", limit_type: "soft", limit_item: "nofile", value: "65536" } },
-  { id: 'syslog_facility', module: 'ansible.posix.syslog_facility', name: 'Manage Syslog Facilities', icon: FileText, description: 'Configure syslog facilities and forwarding.', defaultParameters: { facility: "kern", level: "err", dest: "/var/log/kern_errors.log" } },
-  { id: 'locale_gen', module: 'community.general.locale_gen', name: 'Generate Locales', icon: Globe, description: 'Generate specified locales.', defaultParameters: { name: "en_US.UTF-8", state: "present" } },
+  { id: 'syslog_facility', module: 'ansible.posix.syslog_facility', name: 'Configure Syslog', icon: FileText, description: 'Manage syslog facility configuration.', defaultParameters: { facility: "kern", level: "err", dest: "/var/log/kern_errors.log" } },
+  { id: 'locale_gen', module: 'community.general.locale_gen', name: 'Generate Locales', icon: Globe, description: 'Creates or removes locales.', defaultParameters: { name: "en_US.UTF-8", state: "present" } },
   { id: 'timezone', module: 'community.general.timezone', name: 'Configure Timezone', icon: CalendarClock, description: 'Set the system timezone.', defaultParameters: { name: "Europe/London" } },
 ];
 
@@ -80,7 +80,7 @@ const networkingModules: AnsibleModuleDefinition[] = [
   { id: 'get_url', module: 'ansible.builtin.get_url', name: 'Download File (URL)', icon: DownloadCloud, description: 'Downloads files from HTTP, HTTPS, or FTP to remote nodes.', defaultParameters: { url: "https://example.com/software.tar.gz", dest: "/tmp/software.tar.gz", mode: "0644" } },
   { id: 'uri', module: 'ansible.builtin.uri', name: 'Interact with Web Services/APIs', icon: Cloud, description: 'Interacts with HTTP and HTTPS web services or APIs.', defaultParameters: { url: "https://api.example.com/status", method: "GET", return_content: "yes", status_code: [200, 201] } },
   { id: 'nftables', module: 'community.general.nftables', name: 'nftables Rule', icon: Shield, description: 'Manage nftables rules.', defaultParameters: { table: "inet-filter", chain: "input", rule: "tcp dport ssh accept", state: "present" } },
-  { id: 'hostname_facts', module: 'ansible.builtin.hostname_facts', name: 'Gather Hostname Facts', icon: Info, description: 'Gathers facts about the system hostname.', defaultParameters: {} },
+  { id: 'hostname_facts', module: 'ansible.builtin.hostname_facts', name: 'Gather Hostname Facts (Deprecated)', icon: Info, description: 'Gathers facts about the system hostname. (Deprecated, use ansible_facts.hostname).', defaultParameters: {} },
   { id: 'interfaces_file', module: 'community.general.interfaces_file', name: 'Manage Network Interfaces File (Debian)', icon: AlignCenter, description: 'Manages /etc/network/interfaces file on Debian-based systems.', defaultParameters: { name: "eth1", type: "static", address: "10.0.0.10/24", gateway: "10.0.0.1" } },
   { id: 'netplan', module: 'community.general.netplan', name: 'Configure Netplan (Ubuntu)', icon: Route, description: 'Configure netplan network settings on Ubuntu.', defaultParameters: { config_file: "/etc/netplan/01-custom.yaml", definition: { network: { version: 2, ethernets: { eth0: { dhcp4: true } } } } } },
   { id: 'listen_ports_facts', module: 'ansible.builtin.listen_ports_facts', name: 'Gather Listening Ports Facts', icon: Eye, description: 'Gathers facts about listening TCP and UDP ports.', defaultParameters: {} },
@@ -150,9 +150,9 @@ const utilityExecutionModules: AnsibleModuleDefinition[] = [
   { id: 'meta', module: 'ansible.builtin.meta', name: 'Execute Ansible Meta Actions', icon: Workflow, description: 'Executes Ansible meta actions like flush_handlers, refresh_inventory, end_play.', defaultParameters: { action: "flush_handlers" } },
   { id: 'ping', module: 'ansible.builtin.ping', name: 'Ping Hosts', icon: TestTube2, description: 'Try to connect to host, verify a usable python and return pong on success.', defaultParameters: {} },
   { id: 'gather_facts', module: 'ansible.builtin.gather_facts', name: 'Control Fact Gathering', icon: Info, description: 'Explicitly controls fact gathering for a play.', defaultParameters: { enabled: "no" } }, 
-  { id: 'delegate_to', module: 'delegate_to', name: 'Delegate Task', icon: Waypoints, description: 'Run a task on a different host than the current target.', defaultParameters: { host: "localhost" } }, 
-  { id: 'run_once', module: 'run_once', name: 'Run Task Once', icon: MessageSquare, description: 'Run a task only on the first host in the current batch.', defaultParameters: { enabled: "yes" } }, 
-  { id: 'tags', module: 'tags', name: 'Tag Management', icon: ToggleLeft, description: 'Add tags to tasks or plays for selective execution.', defaultParameters: { names: ["configuration", "security"]}}, 
+  { id: 'delegate_to', module: 'delegate_to', name: 'Delegate Task Keyword', icon: Waypoints, description: 'Run a task on a different host than the current target.', defaultParameters: { host: "localhost" } }, 
+  { id: 'run_once', module: 'run_once', name: 'Run Task Once Keyword', icon: MessageSquare, description: 'Run a task only on the first host in the current batch.', defaultParameters: { enabled: "yes" } }, 
+  { id: 'tags', module: 'tags', name: 'Tag Management Keyword', icon: ToggleLeft, description: 'Add tags to tasks or plays for selective execution.', defaultParameters: { names: ["configuration", "security"]}}, 
   { id: 'openssl_privatekey', module: 'community.crypto.openssl_privatekey', name: 'Generate OpenSSL Private Key', icon: KeyRound, description: 'Generate OpenSSL private keys.', defaultParameters: { path: "/etc/ssl/private/mykey.pem", size: 2048 } },
   { id: 'x509_certificate', module: 'community.crypto.x509_certificate', name: 'Generate X.509 Certificate', icon: FileBadge, description: 'Generate self-signed X.509 certificates.', defaultParameters: { path: "/etc/ssl/certs/mycert.pem", privatekey_path: "/etc/ssl/private/mykey.pem", provider: "selfsigned" } },
   { id: 'include_vars', module: 'ansible.builtin.include_vars', name: 'Include Variables File', icon: FileSymlink, description: 'Load variables from files dynamically.', defaultParameters: { file: "vars/my_vars.yml" } },
@@ -201,3 +201,5 @@ export const moduleGroups: AnsibleModuleGroup[] = [
     modules: utilityExecutionModules 
   },
 ];
+
+    
