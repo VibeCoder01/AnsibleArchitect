@@ -177,6 +177,8 @@ interface EditableParameter {
   value: string;
 }
 
+const MANUAL_ENTRY_VALUE = "_INTERNAL_MANUAL_ROLE_SELECTION_";
+
 export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [] }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
@@ -220,7 +222,6 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
   };
 
   const handleSelectDefinedRole = (roleName: string) => {
-    // Find 'name' parameter or add it
     const nameParamIndex = editableParameters.findIndex(p => p.key === 'name');
     if (nameParamIndex > -1) {
       setEditableParameters(prev =>
@@ -254,7 +255,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
           const lowerVal = p.value.toLowerCase().trim();
           if (lowerVal === 'true' || lowerVal === 'yes') val = true;
           else if (lowerVal === 'false' || lowerVal === 'no') val = false;
-          else if (trimmedKey !== 'name' && !isNaN(Number(p.value)) && p.value.trim() !== "") val = Number(p.value); // Avoid converting role name to number
+          else if (trimmedKey !== 'name' && !isNaN(Number(p.value)) && p.value.trim() !== "") val = Number(p.value);
           acc[trimmedKey] = val;
         }
         return acc;
@@ -265,7 +266,16 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
   };
 
   const isRoleModuleType = editingTask?.module === 'ansible.builtin.include_role' || editingTask?.module === 'ansible.builtin.import_role';
+  
+  // This determines the value currently in the 'name' parameter input field
   const currentRoleNameParamValue = editableParameters.find(p => p.key === 'name')?.value || "";
+  
+  // This determines what value the Select component should display as selected.
+  // If currentRoleNameParamValue is a defined role, show that. Otherwise, show placeholder (by passing "" to Select value).
+  const selectDisplayValue = (isRoleModuleType && definedRoles.some(r => r.name === currentRoleNameParamValue)) 
+                             ? currentRoleNameParamValue 
+                             : "";
+
 
   return (
     <ScrollArea className="h-full p-0.5 flex-grow">
@@ -358,15 +368,22 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                   <div>
                     <Label htmlFor="definedRoleSelect" className="font-medium">Select Defined Role</Label>
                     <Select
-                      value={currentRoleNameParamValue && definedRoles.some(r => r.name === currentRoleNameParamValue) ? currentRoleNameParamValue : ""}
-                      onValueChange={(value) => {
-                        if (value === "") { // Manual Entry / None
-                          // If switching to manual, ensure the 'name' param exists for editing
-                          if (!editableParameters.some(p => p.key === 'name')) {
-                            setEditableParameters(prev => [...prev, { id: crypto.randomUUID(), key: 'name', value: '' }]);
+                      value={selectDisplayValue}
+                      onValueChange={(selectedValue) => {
+                        if (selectedValue === MANUAL_ENTRY_VALUE) {
+                          const nameParamIndex = editableParameters.findIndex(p => p.key === 'name');
+                          if (nameParamIndex > -1) {
+                            setEditableParameters(prev =>
+                              prev.map((p, index) => (index === nameParamIndex ? { ...p, value: "" } : p))
+                            );
+                          } else {
+                            setEditableParameters(prev => [
+                              ...prev,
+                              { id: crypto.randomUUID(), key: 'name', value: '' },
+                            ]);
                           }
                         } else {
-                          handleSelectDefinedRole(value);
+                          handleSelectDefinedRole(selectedValue);
                         }
                       }}
                     >
@@ -374,7 +391,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                         <SelectValue placeholder="Select a defined role (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">-- Manual Entry / None --</SelectItem>
+                        <SelectItem value={MANUAL_ENTRY_VALUE}>-- Manual Entry / None --</SelectItem>
                         {definedRoles.map(role => (
                           <SelectItem key={role.id} value={role.name}>
                             {role.name}
@@ -382,7 +399,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Selecting a role will populate the 'name' parameter below.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Selecting a role will populate the 'name' parameter below. Choose 'Manual Entry' to type freely.</p>
                   </div>
                 </>
               )}
@@ -399,7 +416,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                         value={param.key}
                         onChange={(e) => handleParameterPropertyChange(param.id, 'key', e.target.value)}
                         className="flex-1 text-sm"
-                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== ""}
+                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== "" && param.value !== MANUAL_ENTRY_VALUE}
                       />
                       <Input
                         aria-label="Parameter value"
@@ -407,7 +424,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                         value={param.value}
                         onChange={(e) => handleParameterPropertyChange(param.id, 'value', e.target.value)}
                         className="flex-1 text-sm"
-                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== ""}
+                        disabled={isRoleModuleType && param.key === 'name' && definedRoles.some(r => r.name === param.value) && param.value !== "" && param.value !== MANUAL_ENTRY_VALUE}
                       />
                       <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleRemoveParameter(param.id)} aria-label="Remove parameter">
                         <X className="w-3.5 h-3.5" />
@@ -432,3 +449,4 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     </ScrollArea>
   );
 }
+
