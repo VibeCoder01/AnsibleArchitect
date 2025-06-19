@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy, X, FilePlus, Edit2 } from "lucide-react";
+import { Download, ClipboardCheck, ExternalLink, Settings, Trash2, PlusCircle, ClipboardCopy, X, FilePlus, Edit2, FileCheck } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -97,7 +97,7 @@ const createNewPlaybook = (name?: string): PlaybookState => ({
 
 interface StoppableEvent {
   stopPropagation: () => void;
-  preventDefault?: () => void; 
+  preventDefault?: () => void;
 }
 
 
@@ -108,8 +108,8 @@ export function AnsibleArchitectLayout() {
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
-  const [col1Width, setCol1Width] = React.useState(350); 
-  const [col2Width, setCol2Width] = React.useState(450); 
+  const [col1Width, setCol1Width] = React.useState(350);
+  const [col2Width, setCol2Width] = React.useState(450);
 
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
   const [startX, setStartX] = React.useState(0);
@@ -125,13 +125,15 @@ export function AnsibleArchitectLayout() {
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
   const [renamingPlaybookId, setRenamingPlaybookId] = React.useState<string | null>(null);
   const [tempPlaybookName, setTempPlaybookName] = React.useState("");
+  
+  const inventoryInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
     const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
     let initialPlaybooks: PlaybookState[] = [];
     let initialActiveId: string | null = null;
-  
+
     if (storedPlaybooks) {
       try {
         const parsedPlaybooks = JSON.parse(storedPlaybooks) as PlaybookState[];
@@ -147,25 +149,25 @@ export function AnsibleArchitectLayout() {
         console.error("Error parsing playbooks from localStorage:", error);
       }
     }
-  
+
     if (initialPlaybooks.length === 0) {
       const defaultPlaybook = createNewPlaybook("Default Playbook");
       initialPlaybooks = [defaultPlaybook];
       initialActiveId = defaultPlaybook.id;
     }
-  
+
     setPlaybooks(initialPlaybooks);
     setActivePlaybookId(initialActiveId);
     setIsClientReady(true);
-  }, []); 
+  }, []);
 
   React.useEffect(() => {
-    if (!isClientReady) return; 
+    if (!isClientReady) return;
 
     if (playbooks.length > 0) {
       localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY); 
+      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
     }
     if (activePlaybookId) {
       localStorage.setItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY, activePlaybookId);
@@ -415,18 +417,18 @@ export function AnsibleArchitectLayout() {
     event.stopPropagation();
     if (!isClientReady) return;
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
-    
+
     setPlaybooks(prev => {
       const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
       if (remainingPlaybooks.length === 0) {
         const newDefault = createNewPlaybook("Default Playbook");
-        setActivePlaybookId(newDefault.id); 
+        setActivePlaybookId(newDefault.id);
         return [newDefault];
       }
       if (activePlaybookId === playbookIdToClose) {
         const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        let newActiveId = remainingPlaybooks[0].id; 
-        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) { 
+        let newActiveId = remainingPlaybooks[0].id;
+        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) {
             const potentialPrevPlaybook = prev[closedTabIndex -1];
             if (remainingPlaybooks.some(r => r.id === potentialPrevPlaybook.id)) {
                 newActiveId = potentialPrevPlaybook.id;
@@ -461,26 +463,126 @@ export function AnsibleArchitectLayout() {
     setTempPlaybookName("");
   };
 
+  const validateInventoryContent = (content: string, fileName: string) => {
+    const lines = content.split(/\r?\n/);
+    let currentGroup: string | null = null;
+    const groups: Record<string, string[]> = {};
+    let hostCount = 0;
+    let errorLine = -1;
+    let errorMessage = "";
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === "" || line.startsWith("#") || line.startsWith(";")) {
+        continue; // Skip empty lines and comments
+      }
+
+      if (line.startsWith("[") && line.endsWith("]")) {
+        const groupName = line.substring(1, line.length - 1).trim();
+        if (!groupName || groupName.includes("[") || groupName.includes("]")) {
+          errorLine = i + 1;
+          errorMessage = `Malformed group header: ${line}`;
+          break;
+        }
+        if (groupName.endsWith(":vars")) { // Handle group vars section
+           currentGroup = groupName; // e.g. [webservers:vars]
+           if (!groups[groupName]) groups[groupName] = [];
+        } else {
+           currentGroup = groupName;
+           if (!groups[currentGroup]) groups[currentGroup] = [];
+        }
+      } else if (currentGroup) {
+        // This is either a host or a variable within a [group:vars] section
+        const parts = line.split(/\s+/);
+        const hostOrVarName = parts[0];
+        
+        if (hostOrVarName.includes("=")) { // Likely a var if it starts with key=value
+            if (!currentGroup.endsWith(":vars")) { // Vars should be under [group:vars]
+                errorLine = i + 1;
+                errorMessage = `Variable definition "${line}" found outside a :vars section.`;
+                break;
+            }
+            // Simple var validation: key=value
+            if (!/^\S+=\S+/.test(line.replace(/\s*#.*$/, ""))) { // also remove trailing comments
+                 errorLine = i + 1;
+                 errorMessage = `Malformed variable definition: ${line}`;
+                 break;
+            }
+            groups[currentGroup].push(line); // Store the var line
+        } else { // Host line
+            if (currentGroup.endsWith(":vars")) {
+                 errorLine = i + 1;
+                 errorMessage = `Host definition "${hostOrVarName}" found inside a :vars section.`;
+                 break;
+            }
+            if (!/^[a-zA-Z0-9_.-]+$/.test(hostOrVarName)) { // Basic check for host name validity
+                errorLine = i + 1;
+                errorMessage = `Invalid characters in host name: ${hostOrVarName}`;
+                break;
+            }
+            groups[currentGroup].push(hostOrVarName);
+            hostCount++;
+            // Further parsing of host variables (ansible_host=... etc.) can be added here
+        }
+      } else {
+        // Line is not a comment, not empty, not a group, and no current group context for host/var
+        errorLine = i + 1;
+        errorMessage = `Unexpected line format or host/variable outside a group: ${line}`;
+        break;
+      }
+    }
+
+    if (errorLine !== -1) {
+      toast({
+        title: "Inventory Validation Failed",
+        description: `Error in "${fileName}" on line ${errorLine}: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } else {
+      const groupCount = Object.keys(groups).filter(g => !g.endsWith(":vars")).length;
+      toast({
+        title: "Inventory Validation Successful",
+        description: `File "${fileName}" is valid. Found ${groupCount} group(s) and ${hostCount} host(s).`,
+        className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
+      });
+    }
+  };
+
+  const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      toast({ title: "Error", description: "No file selected.", variant: "destructive" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        validateInventoryContent(content, file.name);
+      } else {
+        toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
+      }
+    };
+    reader.onerror = () => {
+      toast({ title: "Error", description: `Error reading file: ${file.name}`, variant: "destructive" });
+    };
+    reader.readAsText(file);
+
+    // Reset the file input to allow selecting the same file again
+    if (inventoryInputRef.current) {
+      inventoryInputRef.current.value = "";
+    }
+  };
 
   if (!isClientReady) {
     return <div className="flex h-screen items-center justify-center bg-background text-foreground">Loading playbooks...</div>;
   }
 
-  if (!activePlaybook && playbooks.length > 0) {
-     console.warn("Active playbook ID became invalid or playbooks array changed without updating active ID. Re-syncing.");
-     setActivePlaybookId(playbooks[0].id);
-     return <div className="flex h-screen items-center justify-center bg-background text-foreground">Re-initializing active playbook...</div>;
-  }
-  
   if (!activePlaybook) {
-     console.error("Critical: No active playbook and no playbooks available after client ready state. This may indicate an issue with initial playbook creation or localStorage state.");
-     // Attempt to create a default playbook as a last resort
-     if (playbooks.length === 0) {
-        const defaultPlaybook = createNewPlaybook("Emergency Default Playbook");
-        setPlaybooks([defaultPlaybook]);
-        setActivePlaybookId(defaultPlaybook.id);
-        return <div className="flex h-screen items-center justify-center bg-background text-orange-500">No playbooks found, created a default. Please reload if issues persist.</div>;
-     }
+     // This case should ideally not be reached if isClientReady is true and playbooks are initialized.
+     // It's a safeguard.
+     console.error("Critical: No active playbook available after client ready state and initialization.");
      return <div className="flex h-screen items-center justify-center bg-background text-red-500">Error: No playbook available. Please refresh or check console.</div>;
   }
 
@@ -501,9 +603,9 @@ export function AnsibleArchitectLayout() {
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
       <Tabs
-        value={activePlaybookId || ""} 
+        value={activePlaybookId || ""}
         onValueChange={setActivePlaybookId}
-        className="flex flex-col flex-1 min-w-0 min-h-0" 
+        className="flex flex-col flex-1 min-w-0 min-h-0"
       >
         <div className="flex items-center border-b bg-card rounded-t-lg">
           <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
@@ -521,9 +623,9 @@ export function AnsibleArchitectLayout() {
                     className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
                     aria-label="Rename playbook"
                   >
-                    <span 
-                        role="button" 
-                        tabIndex={0} 
+                    <span
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => openRenameModal(p.id, p.name, e)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}
                     >
@@ -537,9 +639,9 @@ export function AnsibleArchitectLayout() {
                     className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
                     aria-label="Close playbook"
                   >
-                     <span 
-                        role="button" 
-                        tabIndex={0} 
+                     <span
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => handleClosePlaybook(p.id, e)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}
                     >
@@ -553,13 +655,13 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-4 h-4" />
           </Button>
         </div>
-        
+
         <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
             {playbooks.map(p => (
             <TabsContent
                 key={p.id}
                 value={p.id}
-                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0" 
+                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
             >
                 <div
                 style={{ flex: `0 0 ${col2Width}px` }}
@@ -586,7 +688,7 @@ export function AnsibleArchitectLayout() {
                 <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
                 <div
-                style={{ flex: '1 1 0%' }} 
+                style={{ flex: '1 1 0%' }}
                 className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
                 >
                 <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
@@ -619,6 +721,17 @@ export function AnsibleArchitectLayout() {
           <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <ClipboardCopy className="w-3.5 h-3.5 mr-1.5" /> Copy YAML
           </Button>
+          <Separator className="my-2"/>
+          <Button onClick={() => inventoryInputRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Load & Validate Inventory
+          </Button>
+          <input
+            type="file"
+            ref={inventoryInputRef}
+            onChange={handleInventoryFileChange}
+            accept=".ini, text/plain, inventory/*"
+            className="hidden"
+          />
           <Separator className="my-2"/>
            <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
@@ -712,5 +825,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
-    
