@@ -12,7 +12,7 @@ const Tabs = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Root
     ref={ref}
-    className={cn("flex flex-col", className)} // Added flex flex-col for proper layout with flex-grow content
+    className={cn("flex flex-col min-h-0", className)} // Added flex flex-col for proper layout with flex-grow content
     {...props}
   />
 ));
@@ -56,7 +56,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-grow", // Removed mt-2
+      "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-grow min-h-0", // Removed mt-2 and added min-h-0
       className
     )}
     {...props}
