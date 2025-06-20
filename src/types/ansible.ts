@@ -21,6 +21,7 @@ export interface AnsibleTask {
   parameters: Record<string, any>; // Parameters for the module
   rawYAML?: string; // Store AI suggested task YAML directly
   comment?: string; // Optional comment for the task
+  isPristine?: boolean; // True if the task parameters haven't been modified from default
 }
 
 export interface AnsiblePlay {
@@ -46,3 +47,4 @@ export interface PlaybookState {
   tasks: AnsibleTask[];
   // Future: unsavedChanges?: boolean; filePath?: string;
 }
+

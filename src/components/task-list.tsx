@@ -293,7 +293,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
         }
         return acc;
       }, {} as Record<string, any>);
-      onUpdateTask({ ...editingTask, name: tempTaskName, parameters: newParams });
+      onUpdateTask({ ...editingTask, name: tempTaskName, parameters: newParams, isPristine: false });
       setEditingTask(null);
     }
   };
@@ -323,8 +323,9 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
               <Card
                 key={task.id}
                 className={cn(
-                  "bg-card shadow-sm hover:shadow-md transition-all group relative",
-                  { 'bg-primary/10 ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
+                  "shadow-sm hover:shadow-md transition-all group relative",
+                  task.isPristine ? "bg-primary/5" : "bg-card",
+                  { 'ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
                 )}
                 draggable
                 onDragStart={() => handleDragStart(index)}

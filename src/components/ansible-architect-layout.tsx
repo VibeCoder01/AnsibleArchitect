@@ -216,10 +216,14 @@ export function AnsibleArchitectLayout() {
         name: `New ${moduleDef.name} Task`,
         module: moduleDef.module,
         parameters: JSON.parse(JSON.stringify(moduleDef.defaultParameters || {})),
+        isPristine: true,
       };
     } else {
-      newTask = taskDetails as AnsibleTask;
+      newTask = { ...(taskDetails as AnsibleTask) };
       if (!newTask.id) newTask.id = uuidv4();
+      if (newTask.isPristine === undefined) {
+          newTask.isPristine = false; 
+      }
     }
     updateActivePlaybookState({ tasks: [...currentActivePlaybook.tasks, newTask] });
   };
@@ -230,7 +234,8 @@ export function AnsibleArchitectLayout() {
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; 
+    if (!currentActivePlaybook) return;
+    // The updatedTask from TaskList should already have isPristine set to false
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
