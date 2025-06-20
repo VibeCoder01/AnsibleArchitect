@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { v4 as uuidv4 } from 'uuid';
 
 
 interface TaskListProps {
@@ -240,7 +241,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     setTempTaskName(task.name);
     setEditableParameters(
       Object.entries(task.parameters || {}).map(([k, v]) => ({
-        id: crypto.randomUUID(),
+        id: uuidv4(),
         key: k,
         value: String(v ?? ''),
       }))
@@ -262,7 +263,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     } else {
       setEditableParameters(prev => [
         ...prev,
-        { id: crypto.randomUUID(), key: 'name', value: roleName },
+        { id: uuidv4(), key: 'name', value: roleName },
       ]);
     }
   };
@@ -270,7 +271,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
   const handleAddParameter = () => {
     setEditableParameters(prev => [
       ...prev,
-      { id: crypto.randomUUID(), key: '', value: '' },
+      { id: uuidv4(), key: '', value: '' },
     ]);
   };
 
@@ -413,7 +414,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                           } else {
                              setEditableParameters(prev => [
                               ...prev,
-                              { id: crypto.randomUUID(), key: 'name', value: '' },
+                              { id: uuidv4(), key: 'name', value: '' },
                             ]);
                           }
                         } else {

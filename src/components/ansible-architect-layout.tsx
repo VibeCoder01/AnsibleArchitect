@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InventoryStructureVisualizer } from "@/components/inventory-structure-visualizer";
+import { v4 as uuidv4 } from 'uuid';
 
 
 const MIN_COLUMN_WIDTH = 150; 
@@ -92,7 +93,7 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
 }
 
 const createNewPlaybook = (name?: string): PlaybookState => ({
-  id: crypto.randomUUID(),
+  id: uuidv4(),
   name: name || `Untitled Playbook ${Date.now() % 10000}`,
   tasks: [],
 });
@@ -211,14 +212,14 @@ export function AnsibleArchitectLayout() {
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
       newTask = {
-        id: crypto.randomUUID(),
+        id: uuidv4(),
         name: `New ${moduleDef.name} Task`,
         module: moduleDef.module,
         parameters: JSON.parse(JSON.stringify(moduleDef.defaultParameters || {})),
       };
     } else {
       newTask = taskDetails as AnsibleTask;
-      if (!newTask.id) newTask.id = crypto.randomUUID();
+      if (!newTask.id) newTask.id = uuidv4();
     }
     updateActivePlaybookState({ tasks: [...currentActivePlaybook.tasks, newTask] });
   };
@@ -500,7 +501,7 @@ export function AnsibleArchitectLayout() {
       toast({ title: "Error", description: "A role with this name already exists.", variant: "destructive" });
       return;
     }
-    setDefinedRoles(prev => [...prev, { id: crypto.randomUUID(), name: newRoleName.trim() }]);
+    setDefinedRoles(prev => [...prev, { id: uuidv4(), name: newRoleName.trim() }]);
     setNewRoleName("");
     toast({ title: "Success", description: `Role "${newRoleName.trim()}" added.` });
   };
