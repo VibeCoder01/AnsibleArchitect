@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InventoryStructureVisualizer } from "@/components/inventory-structure-visualizer";
 
 
-const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
+const MIN_COLUMN_WIDTH = 150; 
 const LOCAL_STORAGE_PLAYBOOKS_KEY = "ansibleArchitectPlaybooks";
 const LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY = "ansibleArchitectActivePlaybookId";
 
@@ -27,7 +27,7 @@ function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string
   const segments: YamlSegment[] = [];
   const playbookStructure: AnsiblePlaybookYAML = [
     {
-      id: "play1", // This ID is internal to YAML generation, not the playbook's main ID
+      id: "play1", 
       name: playbookName,
       hosts: "all",
       become: true,
@@ -110,13 +110,16 @@ export function AnsibleArchitectLayout() {
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
-  const [col1Width, setCol1Width] = React.useState(350);
-  const [col2Width, setCol2Width] = React.useState(450);
+  const [col1Width, setCol1Width] = React.useState(300); // Module Palette
+  const [col2Width, setCol2Width] = React.useState(450); // Task List (within middle area)
+  const [actionsPanelWidth, setActionsPanelWidth] = React.useState(256); // Actions Panel
 
-  const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | null>(null);
+  const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | "actionsPanel" | null>(null);
   const [startX, setStartX] = React.useState(0);
   const [initialCol1W, setInitialCol1W] = React.useState(0);
   const [initialCol2W, setInitialCol2W] = React.useState(0);
+  const [initialActionsPanelW, setInitialActionsPanelW] = React.useState(0);
+
 
   const [definedRoles, setDefinedRoles] = React.useState<AnsibleRoleRef[]>([]);
   const [isManageRolesModalOpen, setIsManageRolesModalOpen] = React.useState(false);
@@ -311,7 +314,7 @@ export function AnsibleArchitectLayout() {
             if (typeof play !== 'object' || play === null) {
               semanticErrors.push(`Play ${playIndex + 1} is not a valid object.`);
               hasSemanticIssues = true;
-              return; // Skip further checks for this malformed play
+              return; 
             }
 
             if (!play.hosts || typeof play.hosts !== 'string') {
@@ -334,15 +337,15 @@ export function AnsibleArchitectLayout() {
                   if (typeof task !== 'object' || task === null) {
                     semanticErrors.push(`Task ${taskIndex + 1} in Play ${playIndex + 1} is not a valid object.`);
                     hasSemanticIssues = true;
-                    return; // Skip further checks for this malformed task
+                    return; 
                   }
                   
                   const taskKeys = Object.keys(task);
                   const knownTaskKeywords = ['name', 'when', 'loop', 'register', 'tags', 'become', 'vars', 'include_role', 'import_role', 'block', 'rescue', 'always', 'delegate_to', 'run_once', 'ignore_errors', 'changed_when', 'failed_when', 'notify', 'listen', 'environment', 'args', 'no_log', 'loop_control', 'until', 'retries', 'delay', 'async', 'poll', 'check_mode', 'diff', 'debugger', 'collections', 'module_defaults'];
                   const moduleKeys = taskKeys.filter(k => !knownTaskKeywords.includes(k));
 
-                  if (moduleKeys.length === 0 && !task.block) { // block is a special case that contains tasks
-                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} does not seem to call a module or include a block.`);
+                  if (moduleKeys.length === 0 && !task.block && !task.include_role && !task.import_role) { 
+                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} does not seem to call a module, include a role, or define a block.`);
                   } else if (moduleKeys.length === 1) {
                     const moduleKey = moduleKeys[0];
                     const moduleParams = task[moduleKey];
@@ -433,12 +436,13 @@ export function AnsibleArchitectLayout() {
     setIsDraggingOverTaskList(false);
   };
 
-  const handleMouseDown = (resizerId: "col1" | "col2", event: React.MouseEvent) => {
+  const handleMouseDown = (resizerId: "col1" | "col2" | "actionsPanel", event: React.MouseEvent) => {
     event.preventDefault();
     setDraggingResizer(resizerId);
     setStartX(event.clientX);
     setInitialCol1W(col1Width);
     setInitialCol2W(col2Width);
+    setInitialActionsPanelW(actionsPanelWidth);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };
@@ -452,8 +456,11 @@ export function AnsibleArchitectLayout() {
     } else if (draggingResizer === "col2") {
       const newW2 = initialCol2W + deltaX;
       setCol2Width(Math.max(MIN_COLUMN_WIDTH, newW2));
+    } else if (draggingResizer === "actionsPanel") {
+      const newAPW = initialActionsPanelW - deltaX; // Dragging right decreases right panel width
+      setActionsPanelWidth(Math.max(MIN_COLUMN_WIDTH, newAPW));
     }
-  }, [draggingResizer, startX, initialCol1W, initialCol2W]);
+  }, [draggingResizer, startX, initialCol1W, initialCol2W, initialActionsPanelW]);
 
   const handleMouseUp = React.useCallback(() => {
     setDraggingResizer(null);
@@ -619,13 +626,12 @@ export function AnsibleArchitectLayout() {
                     break;
                 }
                 groups[currentGroup].push(firstWord);
-            } else { // Regular group section (hosts or hosts with inline variables)
+            } else { 
                 if (!firstWord) {
                     errorLine = i + 1;
                     errorMessage = `Empty host entry in group "${currentGroup}".`;
                     break;
                 }
-                // Allow hosts with inline variables (e.g., host1 ansible_port=2222)
                 if (!/^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) { 
                     errorLine = i + 1;
                     errorMessage = `Potentially invalid characters in host name: "${firstWord.split('=')[0].trim()}" from line "${line}" in group "${currentGroup}".`;
@@ -635,7 +641,6 @@ export function AnsibleArchitectLayout() {
                 hostCount++;
             }
         } else { 
-             // Ungrouped hosts (can appear at the beginning or between groups)
              const parts = line.split(/\s+/);
              const firstWord = parts[0];
              if (firstWord && /^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) {
@@ -696,12 +701,13 @@ export function AnsibleArchitectLayout() {
             }
             
             if (groupName === 'all' && groupData.hosts && typeof groupData.hosts === 'object' && groupData.hosts !== null) {
-                hostCount += Object.keys(groupData.hosts).length;
-                for (const hostName in groupData.hosts) {
-                     if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
+                 // Count hosts directly under 'all' group if they are defined there
+                Object.keys(groupData.hosts).forEach(hostName => {
+                    hostCount++;
+                    if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
                        warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
                     }
-                }
+                });
             }
 
 
@@ -709,7 +715,9 @@ export function AnsibleArchitectLayout() {
                 if (typeof groupData.hosts !== 'object' || groupData.hosts === null || Array.isArray(groupData.hosts)) {
                     errors.push(`'hosts' key in group '${path}' must be an object (dictionary).`);
                 } else {
-                    hostCount += Object.keys(groupData.hosts).length;
+                     if (groupName !== 'all') { // Avoid double counting hosts if also under 'all'
+                        hostCount += Object.keys(groupData.hosts).length;
+                     }
                     for (const hostName in groupData.hosts) {
                         if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
                            warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
@@ -964,7 +972,7 @@ export function AnsibleArchitectLayout() {
 
 
   return (
-    <div className="flex h-screen bg-background p-4 space-x-4">
+    <div className="flex h-screen bg-background p-4 space-x-0"> {/* space-x-0 to rely on resizers for spacing */}
       <div
         style={{ flex: `0 0 ${col1Width}px` }}
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
@@ -978,110 +986,117 @@ export function AnsibleArchitectLayout() {
 
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
-      <Tabs
-        value={activePlaybookId || ""}
-        onValueChange={setActivePlaybookId}
-        className="flex flex-col flex-1 min-w-0 min-h-0" 
-      >
-        <div className="flex items-center border-b bg-card rounded-t-lg">
-          <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
-            {playbooks.map(p => (
-              <TabsTrigger
-                key={p.id}
-                value={p.id}
-                className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
-              >
-                <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
-                 <Button
-                    asChild
-                    variant="ghost"
-                    size="icon"
-                    className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
-                    aria-label="Rename playbook"
-                  >
-                    <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => openRenameModal(p.id, p.name, e)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </span>
-                  </Button>
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative"> {/* Wrapper for Tabs area */}
+        <Tabs
+          value={activePlaybookId || ""}
+          onValueChange={setActivePlaybookId}
+          className="flex flex-col flex-1 min-w-0 min-h-0" 
+        >
+          <div className="flex items-center border-b bg-card rounded-t-lg">
+            <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
+              {playbooks.map(p => (
+                <TabsTrigger
+                  key={p.id}
+                  value={p.id}
+                  className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
+                >
+                  <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
                   <Button
-                    asChild
-                    variant="ghost"
-                    size="icon"
-                    className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                    aria-label="Close playbook"
-                  >
-                     <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => handleClosePlaybook(p.id, e)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
+                      aria-label="Rename playbook"
                     >
-                       <X className="w-3 h-3" />
-                    </span>
-                  </Button>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
-            <FilePlus className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
-            {playbooks.map(p => (
-            <TabsContent
-                key={p.id}
-                value={p.id}
-                className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
-            >
-                <div
-                style={{ flex: `0 0 ${col2Width}px` }}
-                onDrop={handleDropOnTaskList}
-                onDragOver={handleDragOverTaskList}
-                onDragLeave={handleDragLeaveTaskList}
-                className={`min-w-0 bg-card shadow-sm border-r flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
-                aria-dropeffect="copy"
-                >
-                  <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                  <div className="flex-grow overflow-hidden p-3">
-                      <TaskList
-                      tasks={p.tasks}
-                      onUpdateTask={updateTaskInActivePlaybook}
-                      onDeleteTask={deleteTaskInActivePlaybook}
-                      onMoveTask={moveTaskInActivePlaybook}
-                      definedRoles={definedRoles}
-                      hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                      onSetHoveredTaskId={setHoveredTaskId}
-                      />
+                      <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => openRenameModal(p.id, p.name, e)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </span>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
+                      aria-label="Close playbook"
+                    >
+                      <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => handleClosePlaybook(p.id, e)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    </Button>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
+              <FilePlus className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
+              {playbooks.map(p => (
+              <TabsContent
+                  key={p.id}
+                  value={p.id}
+                  className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
+              >
+                  <div
+                  style={{ flex: `0 0 ${col2Width}px` }}
+                  onDrop={handleDropOnTaskList}
+                  onDragOver={handleDragOverTaskList}
+                  onDragLeave={handleDragLeaveTaskList}
+                  className={`min-w-0 bg-card shadow-sm flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} border-r`} 
+                  aria-dropeffect="copy"
+                  >
+                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+                    <div className="flex-grow overflow-hidden p-3">
+                        <TaskList
+                        tasks={p.tasks}
+                        onUpdateTask={updateTaskInActivePlaybook}
+                        onDeleteTask={deleteTaskInActivePlaybook}
+                        onMoveTask={moveTaskInActivePlaybook}
+                        definedRoles={definedRoles}
+                        hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                        onSetHoveredTaskId={setHoveredTaskId}
+                        />
+                    </div>
                   </div>
-                </div>
 
-                <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+                  <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
-                <div
-                  style={{ flex: '1 1 0%' }}
-                  className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
-                >
-                  <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-                  <div className="flex-grow overflow-hidden">
-                      <YamlDisplay
-                      yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
-                      hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                      onSetHoveredSegmentId={setHoveredTaskId}
-                      />
+                  <div
+                    style={{ flex: '1 1 0%' }}
+                    className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                  >
+                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
+                    <div className="flex-grow overflow-hidden">
+                        <YamlDisplay
+                        yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
+                        hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                        onSetHoveredSegmentId={setHoveredTaskId}
+                        />
+                    </div>
                   </div>
-                </div>
-            </TabsContent>
-            ))}
-        </div>
-      </Tabs>
+              </TabsContent>
+              ))}
+          </div>
+        </Tabs>
+      </div>
 
-      <div className="w-64 flex-shrink-0 bg-card shadow-lg rounded-lg border flex flex-col">
+      <Resizer onMouseDown={(e) => handleMouseDown("actionsPanel", e)} />
+
+      <div 
+        style={{ flex: `0 0 ${actionsPanelWidth}px` }}
+        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+      >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <div className="p-3 space-y-2">
           <Button onClick={handleNewPlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
@@ -1102,7 +1117,7 @@ export function AnsibleArchitectLayout() {
             <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
           </Button>
           <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>
+            <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
             Copy YAML
           </Button>
           <Separator className="my-2"/>
@@ -1210,7 +1225,7 @@ export function AnsibleArchitectLayout() {
         </DialogContent>
       </Dialog>
 
-      {isInventoryVisualizerOpen && (
+      {isClientReady && isInventoryVisualizerOpen && (
         <InventoryStructureVisualizer
           isOpen={isInventoryVisualizerOpen}
           onOpenChange={setIsInventoryVisualizerOpen}
@@ -1219,3 +1234,4 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+

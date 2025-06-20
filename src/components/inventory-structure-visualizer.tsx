@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Server, FolderTree, AlertTriangle, ToyBrick, Network } from "lucide-react";
+import { Server, FolderTree, AlertTriangle, ToyBrick, Network, Maximize2, Minimize2 } from "lucide-react";
 
 interface InventoryNode {
   id: string;
@@ -60,6 +60,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
   const [error, setError] = React.useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = React.useState<number>(100);
   const [expandedNodes, setExpandedNodes] = React.useState<Set<string>>(new Set());
+  const [isMaximized, setIsMaximized] = React.useState(false);
   const { toast } = useToast();
 
   const parseAndBuildTree = (jsonData: any): InventoryNode | null => {
@@ -80,7 +81,6 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         children: [],
       };
       
-      // Add hosts directly in this group
       if (groupData?.hosts && Array.isArray(groupData.hosts)) {
         groupData.hosts.forEach((hostName: string) => {
           if (typeof hostName === 'string') {
@@ -90,15 +90,14 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
               type: 'host',
               children: [],
             });
-            availableHosts.delete(hostName); // Mark host as processed by this group
+            availableHosts.delete(hostName); 
           }
         });
       }
 
-      // Add child groups
       if (groupData?.children && Array.isArray(groupData.children)) {
         groupData.children.forEach((childGroupName: string) => {
-          if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) { // Prevent cycles
+          if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) { 
             node.children.push(buildNode(childGroupName, jsonData[childGroupName], availableHosts, [...path, childGroupName]));
           }
         });
@@ -111,8 +110,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (jsonData.all) {
       rootNode = buildNode('all', jsonData.all, allHosts, ['all']);
     } else {
-      // If 'all' group is not explicit, create a synthetic root to hold top-level groups
-      rootNode = { id: 'group:__synthetic_root__', name: 'Inventory', type: 'group', children: [] };
+      rootNode = { id: 'group:__synthetic_root__', name: 'Inventory Root (Implicit)', type: 'group', children: [] };
       Object.keys(jsonData).forEach(key => {
         if (key !== '_meta' && typeof jsonData[key] === 'object') {
           rootNode!.children.push(buildNode(key, jsonData[key], allHosts, [key]));
@@ -120,17 +118,17 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       });
     }
     
-    // Add any remaining hosts (ungrouped or not explicitly listed under 'all')
-    // This might happen if 'all' is missing or doesn't cover all hosts defined in _meta
     if (allHosts.size > 0 && rootNode) {
         let ungroupedParent = rootNode.children.find(c => c.id === 'group:ungrouped');
-        if (!ungroupedParent) {
-            ungroupedParent = jsonData.ungrouped ? buildNode('ungrouped', jsonData.ungrouped, allHosts, ['ungrouped']) : { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
-            if (!jsonData.ungrouped) rootNode.children.push(ungroupedParent); // Add if not already processed
+        if (!ungroupedParent && jsonData.ungrouped) {
+             ungroupedParent = buildNode('ungrouped', jsonData.ungrouped, allHosts, ['ungrouped']);
+             rootNode.children.push(ungroupedParent);
+        } else if (!ungroupedParent) {
+            ungroupedParent = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
+            rootNode.children.push(ungroupedParent);
         }
         
         allHosts.forEach(hostName => {
-             // Check if host is already under 'ungrouped' to avoid duplicates if 'ungrouped' group exists
             if (!ungroupedParent!.children.some(c => c.id === `host:${hostName}`)) {
                 ungroupedParent!.children.push({
                     id: `host:${hostName}`,
@@ -142,12 +140,14 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         });
     }
 
-
-    // Automatically expand the root node and its direct children
     if (rootNode) {
       const initialExpanded = new Set<string>();
       initialExpanded.add(rootNode.id);
-      rootNode.children.forEach(child => initialExpanded.add(child.id));
+      if (rootNode.id === 'group:__synthetic_root__') { // Expand top-level groups if root is synthetic
+        rootNode.children.forEach(child => initialExpanded.add(child.id));
+      } else if (rootNode.name === 'all' && rootNode.children.length > 0) { // Expand direct children of 'all'
+         rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
+      }
       setExpandedNodes(initialExpanded);
     }
     
@@ -191,11 +191,20 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     });
   };
 
+  const dialogContentClasses = isMaximized
+  ? "w-screen h-screen max-w-full max-h-full p-0 border-0 rounded-none fixed inset-0"
+  : "w-[90vw] h-[85vh] sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw]";
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[90vw] md:max-w-[70vw] lg:max-w-[60vw] h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-4 border-b">
+      <DialogContent className={`${dialogContentClasses} flex flex-col p-0`}>
+        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center">
           <DialogTitle className="font-headline">Visualize Inventory Structure (from ansible-inventory --list)</DialogTitle>
+          <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-8 h-8">
+            {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
+          </Button>
         </DialogHeader>
         
         <div className="flex flex-col md:flex-row flex-1 min-h-0">
@@ -250,4 +259,3 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     </Dialog>
   );
 }
-
