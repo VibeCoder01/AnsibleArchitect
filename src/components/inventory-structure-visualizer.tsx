@@ -32,12 +32,12 @@ const TreeNodeDisplay: React.FC<{ node: InventoryNode; level: number; expandedNo
   return (
     <div style={{ marginLeft: `${level * 20}px` }} className="py-0.5">
       <div className="flex items-center">
-        {node.type === 'group' || node.type === 'all_group' ? (
+        {(node.type === 'group' || node.type === 'all_group') && node.children.length > 0 ? (
           <Button variant="ghost" size="icon" className="w-6 h-6 mr-1" onClick={() => onToggleExpand(node.id)}>
             <ToyBrick className={`w-3 h-3 transform transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`} />
           </Button>
         ) : (
-          <span className="w-6 mr-1"></span> 
+          <span className="w-6 mr-1 flex-shrink-0"></span> 
         )}
         <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
         <span className="text-sm">{node.name} {node.type === 'ungrouped_host' ? '(ungrouped)' : ''}</span>
@@ -70,12 +70,13 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     }
 
     const hostVars = jsonData._meta?.hostvars || {};
-    const allHosts = new Set<string>(Object.keys(hostVars));
+    const allHostsOnSystem = new Set<string>(Object.keys(hostVars));
+    const processedHosts = new Set<string>();
 
-    // Function to recursively build nodes
-    const buildNode = (groupName: string, groupData: any, availableHosts: Set<string>, path: string[]): InventoryNode => {
+    const buildNode = (groupName: string, groupData: any, path: string[]): InventoryNode => {
+      const nodeId = `group:${path.join(':')}:${groupName}`;
       const node: InventoryNode = {
-        id: `group:${groupName}`,
+        id: nodeId,
         name: groupName,
         type: groupName === 'all' ? 'all_group' : 'group',
         children: [],
@@ -90,7 +91,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
               type: 'host',
               children: [],
             });
-            availableHosts.delete(hostName); 
+            processedHosts.add(hostName);
           }
         });
       }
@@ -98,7 +99,15 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       if (groupData?.children && Array.isArray(groupData.children)) {
         groupData.children.forEach((childGroupName: string) => {
           if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) { 
-            node.children.push(buildNode(childGroupName, jsonData[childGroupName], availableHosts, [...path, childGroupName]));
+            node.children.push(buildNode(childGroupName, jsonData[childGroupName], [...path, childGroupName]));
+          } else if (typeof childGroupName === 'string' && !jsonData[childGroupName]){
+             // Child group mentioned but not defined as top-level; treat as empty group node.
+             node.children.push({
+                id: `group:${path.join(':')}:${groupName}:child:${childGroupName}`,
+                name: childGroupName,
+                type: 'group',
+                children: [],
+             });
           }
         });
       }
@@ -108,44 +117,54 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     let rootNode: InventoryNode | null = null;
 
     if (jsonData.all) {
-      rootNode = buildNode('all', jsonData.all, allHosts, ['all']);
+      rootNode = buildNode('all', jsonData.all, ['all']);
     } else {
-      rootNode = { id: 'group:__synthetic_root__', name: 'Inventory Root (Implicit)', type: 'group', children: [] };
+      // If 'all' group is missing, create a synthetic root to hold other top-level groups
+      rootNode = { id: 'group:__synthetic_root__', name: 'Inventory (Implicit Root)', type: 'group', children: [] };
       Object.keys(jsonData).forEach(key => {
-        if (key !== '_meta' && typeof jsonData[key] === 'object') {
-          rootNode!.children.push(buildNode(key, jsonData[key], allHosts, [key]));
+        if (key !== '_meta' && typeof jsonData[key] === 'object' && jsonData[key] !== null) {
+          rootNode!.children.push(buildNode(key, jsonData[key], [key]));
         }
       });
     }
     
-    if (allHosts.size > 0 && rootNode) {
-        let ungroupedParent = rootNode.children.find(c => c.id === 'group:ungrouped');
-        if (!ungroupedParent && jsonData.ungrouped) {
-             ungroupedParent = buildNode('ungrouped', jsonData.ungrouped, allHosts, ['ungrouped']);
-             rootNode.children.push(ungroupedParent);
-        } else if (!ungroupedParent) {
-            ungroupedParent = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
-            rootNode.children.push(ungroupedParent);
+    // Add ungrouped hosts if any
+    const ungroupedHosts = new Set<string>();
+    allHostsOnSystem.forEach(host => {
+        if (!processedHosts.has(host)) {
+            ungroupedHosts.add(host);
         }
-        
-        allHosts.forEach(hostName => {
-            if (!ungroupedParent!.children.some(c => c.id === `host:${hostName}`)) {
-                ungroupedParent!.children.push({
+    });
+
+    if (jsonData.ungrouped && Array.isArray(jsonData.ungrouped.hosts)) {
+        jsonData.ungrouped.hosts.forEach((hostName: string) => ungroupedHosts.add(hostName));
+    }
+    
+    if (ungroupedHosts.size > 0 && rootNode) {
+        let ungroupedGroupNode = rootNode.children.find(c => c.name === 'ungrouped' && c.type === 'group');
+        if (!ungroupedGroupNode) {
+            ungroupedGroupNode = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
+            rootNode.children.push(ungroupedGroupNode);
+        }
+        ungroupedHosts.forEach(hostName => {
+            if (!ungroupedGroupNode!.children.some(c => c.id === `host:${hostName}`)) {
+                ungroupedGroupNode!.children.push({
                     id: `host:${hostName}`,
                     name: hostName,
-                    type: 'ungrouped_host',
+                    type: 'ungrouped_host', // Differentiate potentially if needed
                     children: [],
                 });
             }
         });
     }
 
+
     if (rootNode) {
       const initialExpanded = new Set<string>();
-      initialExpanded.add(rootNode.id);
-      if (rootNode.id === 'group:__synthetic_root__') { // Expand top-level groups if root is synthetic
-        rootNode.children.forEach(child => initialExpanded.add(child.id));
-      } else if (rootNode.name === 'all' && rootNode.children.length > 0) { // Expand direct children of 'all'
+      initialExpanded.add(rootNode.id); // Always expand the root
+      
+      // If the root is 'all' or synthetic, expand its direct children that are groups
+      if (rootNode.id === 'group:all' || rootNode.id === 'group:__synthetic_root__') {
          rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
       }
       setExpandedNodes(initialExpanded);
@@ -166,9 +185,9 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       setError(null);
       const tree = parseAndBuildTree(data);
       setInventoryTree(tree);
-      if (!tree) {
-         toast({ title: "Visualization Error", description: error || "Could not build inventory tree.", variant: "destructive" });
-      } else {
+      if (!tree && !error) { // Error would have been set by parseAndBuildTree
+         toast({ title: "Visualization Error", description: "Could not build inventory tree. Check JSON structure.", variant: "destructive" });
+      } else if (tree) {
          toast({ title: "Inventory Visualized", description: "Inventory structure parsed and displayed.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
       }
     } catch (e) {
@@ -199,32 +218,37 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={`${dialogContentClasses} flex flex-col p-0`}>
-        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center">
+        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center flex-shrink-0">
           <DialogTitle className="font-headline">Visualize Inventory Structure (from ansible-inventory --list)</DialogTitle>
-          <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-8 h-8">
-            {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-8 h-8">
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
+            </Button>
+            <DialogClose asChild>
+               <Button variant="ghost" size="icon" className="w-8 h-8 relative -top-px">&times;</Button>
+            </DialogClose>
+           </div>
         </DialogHeader>
         
         <div className="flex flex-col md:flex-row flex-1 min-h-0">
-          <div className="w-full md:w-1/3 p-3 border-b md:border-b-0 md:border-r flex flex-col">
+          <div className="w-full md:w-96 p-3 border-b md:border-b-0 md:border-r flex flex-col flex-shrink-0">
             <Label htmlFor="jsonInventoryInput" className="mb-1.5 font-medium">Paste JSON Output:</Label>
             <Textarea
               id="jsonInventoryInput"
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
               placeholder="Paste output of 'ansible-inventory --list' here..."
-              className="flex-1 resize-none text-xs font-mono h-40 md:h-auto"
+              className="resize-none text-xs font-mono h-48" // Adjusted height, removed flex-1 and md:h-auto
             />
             <Button onClick={handleVisualize} className="mt-3 w-full">Visualize</Button>
             {error && <p className="mt-2 text-sm text-destructive flex items-center"><AlertTriangle className="w-4 h-4 mr-1.5"/> {error}</p>}
           </div>
 
           <div className="flex-1 p-3 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-shrink-0">
                 <Label htmlFor="zoomSlider" className="text-sm">Zoom: {zoomLevel}%</Label>
-                <Button variant="outline" size="sm" onClick={() => { setInventoryTree(null); setJsonInput(""); setError(null); setZoomLevel(100); }} className="text-xs">Clear</Button>
+                <Button variant="outline" size="sm" onClick={() => { setInventoryTree(null); setJsonInput(""); setError(null); setZoomLevel(100); setExpandedNodes(new Set()); }} className="text-xs">Clear</Button>
             </div>
             <Slider
                 id="zoomSlider"
@@ -233,7 +257,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
                 step={5}
                 value={[zoomLevel]}
                 onValueChange={(value) => setZoomLevel(value[0])}
-                className="mb-3"
+                className="mb-3 flex-shrink-0"
             />
             <ScrollArea className="flex-1 border rounded-md bg-muted/20 p-2">
               {inventoryTree ? (
@@ -250,7 +274,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
           </div>
         </div>
         
-        <DialogFooter className="p-4 border-t">
+        <DialogFooter className="p-4 border-t flex-shrink-0">
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
           </DialogClose>
@@ -259,3 +283,4 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     </Dialog>
   );
 }
+
