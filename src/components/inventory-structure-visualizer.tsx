@@ -10,13 +10,13 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Server, FolderTree, AlertTriangle, ToyBrick, Network, Maximize2, Minimize2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface InventoryNode {
   id: string;
   name: string;
   type: 'group' | 'host' | 'ungrouped_host' | 'all_group';
   children: InventoryNode[];
-  // ansibleVars?: Record<string, any>; // For future use
 }
 
 interface InventoryStructureVisualizerProps {
@@ -24,7 +24,6 @@ interface InventoryStructureVisualizerProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-// Placeholder for the actual tree node rendering component
 const TreeNodeDisplay: React.FC<{ node: InventoryNode; level: number; expandedNodes: Set<string>; onToggleExpand: (nodeId: string) => void }> = ({ node, level, expandedNodes, onToggleExpand }) => {
   const isExpanded = expandedNodes.has(node.id);
   const Icon = node.type === 'host' || node.type === 'ungrouped_host' ? Server : (node.name === 'all' ? Network : FolderTree);
@@ -62,6 +61,12 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
   const [expandedNodes, setExpandedNodes] = React.useState<Set<string>>(new Set());
   const [isMaximized, setIsMaximized] = React.useState(false);
   const { toast } = useToast();
+
+  const [dialogPosition, setDialogPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragStartOffset, setDragStartOffset] = React.useState<{ x: number; y: number } | null>(null);
+  const dialogContentRef = React.useRef<HTMLDivElement>(null);
+
 
   const parseAndBuildTree = (jsonData: any): { tree: InventoryNode | null; error: string | null } => {
     if (typeof jsonData !== 'object' || jsonData === null) {
@@ -128,7 +133,9 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (jsonData.all) {
       rootNode = buildNode('all', jsonData.all, ['all']);
       initialExpanded.add(rootNode.id);
-      rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
+      if (rootNode.children) { // Ensure children exist before iterating
+        rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
+      }
     } else {
       rootNode = { id: 'group:__synthetic_root__', name: 'Inventory (Implicit Root)', type: 'group', children: [] };
       initialExpanded.add(rootNode.id);
@@ -136,15 +143,17 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         if (key !== '_meta' && typeof jsonData[key] === 'object' && jsonData[key] !== null) {
           const childNode = buildNode(key, jsonData[key], [key]);
           rootNode!.children.push(childNode);
-          if (childNode.type === 'group') { 
+          if (childNode.type === 'group' || childNode.type === 'all_group') { // Ensure all_group type also expands
             initialExpanded.add(childNode.id);
           }
         }
       });
-      if (rootNode.children.length === 0 && Object.keys(hostVars).length > 0 && !jsonData.all && !jsonData._meta?.hostvars){ // Adjusted condition slightly
+      if (rootNode.children.length === 0 && Object.keys(hostVars).length > 0){
          Object.keys(hostVars).forEach(hostName => {
-            rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: []});
-            processedHosts.add(hostName);
+            if (!rootNode!.children.some(c => c.id === `host:${hostName}`)) { // Avoid duplicates
+                rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: []});
+                processedHosts.add(hostName);
+            }
          });
       }
     }
@@ -163,7 +172,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     }
 
     if (ungroupedHosts.size > 0 && rootNode) {
-        let ungroupedGroupNode = rootNode.children.find(c => c.id === 'group:ungrouped' || c.name === 'ungrouped' && c.type === 'group');
+        let ungroupedGroupNode = rootNode.children.find(c => c.id === 'group:ungrouped' || (c.name === 'ungrouped' && c.type === 'group'));
         if (!ungroupedGroupNode) {
             ungroupedGroupNode = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
             if (rootNode.name === 'all' || rootNode.name === 'Inventory (Implicit Root)') {
@@ -192,6 +201,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (!jsonInput.trim()) {
       setError("Please paste JSON output from 'ansible-inventory --list'.");
       setInventoryTree(null);
+      toast({ title: "Input Error", description: "JSON input cannot be empty.", variant: "destructive" });
       return;
     }
     let data;
@@ -199,7 +209,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       data = JSON.parse(jsonInput);
     } catch (e) {
       console.error("JSON Parsing Error:", e);
-      const errorMessage = `Invalid JSON syntax: ${(e as Error).message.split('\\n')[0]}`;
+      const errorMessage = `Invalid JSON syntax: ${(e as Error).message.split('\n')[0]}`;
       setError(errorMessage);
       setInventoryTree(null);
       toast({ title: "JSON Parsing Error", description: errorMessage, variant: "destructive" });
@@ -235,49 +245,147 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       return newSet;
     });
   };
+
+  const handleDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isMaximized || !dialogContentRef.current) return;
+     // Allow dragging only by the header, not by internal buttons.
+    if ((e.target as HTMLElement).closest('button')) return;
+
+    setIsDragging(true);
+    const rect = dialogContentRef.current.getBoundingClientRect();
+    setDragStartOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    e.preventDefault(); 
+  };
+
+  React.useEffect(() => {
+    const handleDragMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragStartOffset || isMaximized || !dialogContentRef.current) return;
+      
+      let newX = e.clientX - dragStartOffset.x;
+      let newY = e.clientY - dragStartOffset.y;
+
+      // Basic boundary collision detection
+      const { innerWidth, innerHeight } = window;
+      const dialogRect = dialogContentRef.current.getBoundingClientRect();
+      newX = Math.max(0, Math.min(newX, innerWidth - dialogRect.width));
+      newY = Math.max(0, Math.min(newY, innerHeight - dialogRect.height));
+
+      setDialogPosition({ x: newX, y: newY });
+    };
+
+    const handleDragMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleDragMouseMove);
+      document.addEventListener('mouseup', handleDragMouseUp);
+      document.body.style.userSelect = 'none'; // Prevent text selection during drag
+    } else {
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleDragMouseMove);
+      document.removeEventListener('mouseup', handleDragMouseUp);
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging, dragStartOffset, isMaximized]);
   
-  const dialogContentClasses = isMaximized
-  ? "fixed inset-0 w-screen h-screen max-w-none max-h-none p-0 border-0 rounded-none !left-0 !top-0 !translate-x-0 !translate-y-0"
-  : "w-[90vw] h-[85vh] sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw]";
+  const getDialogDynamicStyles = (): React.CSSProperties => {
+    if (isMaximized) {
+      return {
+        top: '0px',
+        left: '0px',
+        width: '100vw',
+        height: '100vh',
+        transform: 'none',
+        maxWidth: 'none',
+        maxHeight: 'none',
+        borderRadius: '0',
+      };
+    }
+    if (dialogPosition) {
+      return {
+        top: `${dialogPosition.y}px`,
+        left: `${dialogPosition.x}px`,
+        transform: 'none', 
+      };
+    }
+    return {}; // Fallback to CSS class-based centering
+  };
+
+  const dialogBaseClasses = "fixed z-50 grid w-full gap-4 border bg-background p-0 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg";
+  const dialogCenteringClasses = "left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]";
+  const dialogSizingClassesMaximized = "!w-screen !h-screen !max-w-none !max-h-none !rounded-none";
+  const dialogSizingClassesDefault = "w-[90vw] h-[85vh] sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw]";
+
+  let currentDialogClasses = dialogBaseClasses;
+  if (isMaximized) {
+    currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesMaximized);
+  } else if (dialogPosition) {
+     // When dragged, we don't want the centering translate, but keep default sizing
+    currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesDefault);
+  } else {
+    // Default, centered, not maximized
+    currentDialogClasses = cn(dialogBaseClasses, dialogCenteringClasses, dialogSizingClassesDefault);
+  }
 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className={`${dialogContentClasses} flex flex-col p-0`}>
-        <DialogHeader className="p-4 border-b flex flex-row justify-between items-center flex-shrink-0">
+      <DialogContent 
+        ref={dialogContentRef}
+        className={currentDialogClasses}
+        style={getDialogDynamicStyles()}
+        onOpenAutoFocus={(e) => e.preventDefault()} // Prevent auto-focus on first element which can interfere with dragging
+      >
+        <DialogHeader 
+          className={cn(
+            "p-4 border-b flex flex-row justify-between items-center flex-shrink-0",
+            !isMaximized && "cursor-grab",
+            isDragging && "cursor-grabbing"
+          )}
+          onMouseDown={handleDragMouseDown}
+        >
           <DialogTitle className="font-headline">Visualize Inventory Structure (from ansible-inventory --list)</DialogTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-8 h-8">
-              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          <div className="flex items-center gap-1 flex-shrink-0"> {/* Reduced gap */}
+            <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-7 h-7">
+              {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
             </Button>
             <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="w-8 h-8 relative flex items-center justify-center">
-                <X className="w-4 h-4" />
+              <Button variant="ghost" size="icon" className="w-7 h-7">
+                <X className="w-3.5 h-3.5" />
                 <span className="sr-only">Close</span>
               </Button>
             </DialogClose>
            </div>
         </DialogHeader>
 
-        <div className="flex flex-col md:flex-row flex-1 min-h-0">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
           <div className="w-full md:w-96 p-3 border-b md:border-b-0 md:border-r flex flex-col flex-shrink-0">
-            <Label htmlFor="jsonInventoryInput" className="mb-1.5 font-medium">Paste JSON Output:</Label>
-            <Textarea
-              id="jsonInventoryInput"
-              value={jsonInput}
-              onChange={(e) => setJsonInput(e.target.value)}
-              placeholder="Paste output of 'ansible-inventory --list' here..."
-              className="resize-none text-xs font-mono h-48 flex-shrink-0"
-            />
-            <Button onClick={handleVisualize} className="mt-3 w-full flex-shrink-0">Visualize</Button>
+            <Label htmlFor="jsonInventoryInput" className="mb-1.5 font-medium flex-shrink-0">Paste JSON Output:</Label>
+            <div className="flex-1 min-h-0 my-1.5"> {/* Wrapper for textarea */}
+              <Textarea
+                id="jsonInventoryInput"
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                placeholder="Paste output of 'ansible-inventory --list' here..."
+                className="resize-none text-xs font-mono h-full w-full" // Allow to fill wrapper
+              />
+            </div>
+            <Button onClick={handleVisualize} className="mt-auto w-full flex-shrink-0">Visualize</Button> {/* mt-auto to push to bottom */}
             {error && <p className="mt-2 text-sm text-destructive flex items-center flex-shrink-0"><AlertTriangle className="w-4 h-4 mr-1.5"/> {error}</p>}
           </div>
 
           <div className="flex-1 p-3 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
                 <Label htmlFor="zoomSlider" className="text-sm">Zoom: {zoomLevel}%</Label>
-                <Button variant="outline" size="sm" onClick={() => { setInventoryTree(null); setJsonInput(""); setError(null); setZoomLevel(100); setExpandedNodes(new Set()); }} className="text-xs">Clear</Button>
+                <Button variant="outline" size="sm" onClick={() => { setInventoryTree(null); setJsonInput(""); setError(null); setZoomLevel(100); setExpandedNodes(new Set()); setDialogPosition(null); }} className="text-xs">Clear</Button>
             </div>
             <Slider
                 id="zoomSlider"
