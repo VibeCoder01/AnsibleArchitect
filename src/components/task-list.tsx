@@ -37,7 +37,7 @@ interface TaskListProps {
   onUpdateTask: (updatedTask: AnsibleTask) => void;
   onDeleteTask: (taskId: string) => void;
   onMoveTask: (dragIndex: number, hoverIndex: number) => void;
-  definedRoles?: AnsibleRoleRef[]; 
+  definedRoles?: AnsibleRoleRef[];
   hoveredTaskId: string | null;
   onSetHoveredTaskId: (taskId: string | null) => void;
 }
@@ -299,11 +299,11 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
   };
 
   const isRoleModuleType = editingTask?.module === 'ansible.builtin.include_role' || editingTask?.module === 'ansible.builtin.import_role';
-  
+
   const currentRoleNameParamValue = editableParameters.find(p => p.key === 'name')?.value || "";
-  
-  const selectDisplayValue = (isRoleModuleType && definedRoles.some(r => r.name === currentRoleNameParamValue)) 
-                             ? currentRoleNameParamValue 
+
+  const selectDisplayValue = (isRoleModuleType && definedRoles.some(r => r.name === currentRoleNameParamValue))
+                             ? currentRoleNameParamValue
                              : (isRoleModuleType && currentRoleNameParamValue === "" ? MANUAL_ENTRY_VALUE : "");
 
 
@@ -324,7 +324,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                 key={task.id}
                 className={cn(
                   "shadow-sm hover:shadow-md transition-all group relative",
-                  task.isPristine ? "bg-primary/5" : "bg-card",
+                  task.isPristine ? "bg-primary/5 border-destructive" : "bg-card",
                   { 'ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
                 )}
                 draggable
