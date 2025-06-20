@@ -7,7 +7,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InventoryStructureVisualizer } from "@/components/inventory-structure-visualizer";
+
 
 const MIN_COLUMN_WIDTH = 200; // Minimum width for draggable columns in pixels
 const LOCAL_STORAGE_PLAYBOOKS_KEY = "ansibleArchitectPlaybooks";
@@ -129,6 +131,8 @@ export function AnsibleArchitectLayout() {
   const inventoryFileRef = React.useRef<HTMLInputElement>(null);
   const playbookFileRef = React.useRef<HTMLInputElement>(null);
 
+  const [isInventoryVisualizerOpen, setIsInventoryVisualizerOpen] = React.useState(false);
+
 
   React.useEffect(() => {
     const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
@@ -179,12 +183,10 @@ export function AnsibleArchitectLayout() {
   }, [playbooks, activePlaybookId, isClientReady]);
 
   const getActivePlaybook = React.useCallback(() => {
-    // No longer need to check isClientReady here as Tabs won't render until it's true
     return playbooks.find(p => p.id === activePlaybookId);
   }, [playbooks, activePlaybookId]);
 
   const updateActivePlaybookState = React.useCallback((updatedFields: Partial<PlaybookState>) => {
-    // No longer need to check isClientReady here
     setPlaybooks(prev =>
       prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedFields } : p))
     );
@@ -201,7 +203,7 @@ export function AnsibleArchitectLayout() {
 
   const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; // No isClientReady check needed
+    if (!currentActivePlaybook) return; 
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -224,7 +226,7 @@ export function AnsibleArchitectLayout() {
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; // No isClientReady check
+    if (!currentActivePlaybook) return; 
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
@@ -232,7 +234,7 @@ export function AnsibleArchitectLayout() {
 
   const deleteTaskInActivePlaybook = (taskId: string) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; // No isClientReady check
+    if (!currentActivePlaybook) return; 
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.filter(task => task.id !== taskId),
     });
@@ -240,7 +242,7 @@ export function AnsibleArchitectLayout() {
 
   const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; // No isClientReady check
+    if (!currentActivePlaybook) return; 
     const newTasks = [...currentActivePlaybook.tasks];
     const [draggedItem] = newTasks.splice(dragIndex, 1);
     newTasks.splice(hoverIndex, 0, draggedItem);
@@ -248,7 +250,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleExportYaml = () => {
-    if (!fullYamlContent) { // No isClientReady check
+    if (!fullYamlContent) { 
       toast({ title: "Error", description: "No YAML content to export.", variant: "destructive" });
       return;
     }
@@ -265,7 +267,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleCopyYaml = async () => {
-    if (!fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") { // No isClientReady check
+    if (!fullYamlContent || fullYamlContent.trim() === "" || fullYamlContent.trim() === "# Add tasks to see YAML output here") { 
       toast({ title: "Nothing to Copy", description: "Generated YAML is empty.", variant: "default" });
       return;
     }
@@ -278,7 +280,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleValidatePlaybook = () => {
+  const handleValidatePlaybookClick = () => {
      playbookFileRef.current?.click();
   };
 
@@ -405,7 +407,7 @@ export function AnsibleArchitectLayout() {
   const handleDropOnTaskList = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDraggingOverTaskList(false);
-    if (!activePlaybookId) { // No isClientReady check
+    if (!activePlaybookId) { 
       toast({ title: "Error", description: "No active playbook to add tasks to.", variant: "destructive" });
       return;
     }
@@ -505,7 +507,6 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleNewPlaybook = () => {
-    // No isClientReady check
     const newPBook = createNewPlaybook();
     setPlaybooks(prev => [...prev, newPBook]);
     setActivePlaybookId(newPBook.id);
@@ -514,7 +515,6 @@ export function AnsibleArchitectLayout() {
 
   const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
-    // No isClientReady check
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
 
     setPlaybooks(prev => {
@@ -544,14 +544,13 @@ export function AnsibleArchitectLayout() {
 
   const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     event.stopPropagation();
-    // No isClientReady check
     setRenamingPlaybookId(playbookId);
     setTempPlaybookName(currentName);
     setIsRenameModalOpen(true);
   };
 
   const handleRenamePlaybook = () => {
-    if (!renamingPlaybookId || tempPlaybookName.trim() === "") { // No isClientReady check
+    if (!renamingPlaybookId || tempPlaybookName.trim() === "") { 
       toast({title: "Error", description: "Playbook name cannot be empty.", variant: "destructive"});
       return;
     }
@@ -640,8 +639,6 @@ export function AnsibleArchitectLayout() {
              const parts = line.split(/\s+/);
              const firstWord = parts[0];
              if (firstWord && /^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) {
-                // Treat as ungrouped host. For simplicity, we don't store them in 'groups' here
-                // but we count them.
                 hostCount++;
              } else {
                 errorLine = i + 1;
@@ -699,7 +696,6 @@ export function AnsibleArchitectLayout() {
             }
             
             if (groupName === 'all' && groupData.hosts && typeof groupData.hosts === 'object' && groupData.hosts !== null) {
-                 // Special handling for 'all' group if it lists hosts directly
                 hostCount += Object.keys(groupData.hosts).length;
                 for (const hostName in groupData.hosts) {
                      if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
@@ -741,7 +737,7 @@ export function AnsibleArchitectLayout() {
         
         const parsedInventory = inventory as Record<string, any>;
         for (const groupName in parsedInventory) {
-             if (groupName.startsWith('_') && groupName !== '_meta') { // Ignore private keys unless it's _meta
+             if (groupName.startsWith('_') && groupName !== '_meta') { 
                 continue;
              }
              topLevelGroupCount++;
@@ -958,7 +954,10 @@ export function AnsibleArchitectLayout() {
   if (!isClientReady) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-foreground">
-        Loading Ansible Architect...
+        <div className="flex flex-col items-center">
+          <AnsibleArchitectIcon className="w-16 h-16 text-primary mb-4 animate-pulse" />
+          <p className="text-lg font-semibold">Loading Ansible Architect...</p>
+        </div>
       </div>
     );
   }
@@ -1089,7 +1088,7 @@ export function AnsibleArchitectLayout() {
             <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
           </Button>
           <Separator className="my-2"/>
-          <Button onClick={handleValidatePlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+          <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
           </Button>
           <input
@@ -1117,6 +1116,9 @@ export function AnsibleArchitectLayout() {
             accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
             className="hidden"
           />
+           <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
+          </Button>
           <Separator className="my-2"/>
            <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
@@ -1207,8 +1209,13 @@ export function AnsibleArchitectLayout() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isInventoryVisualizerOpen && (
+        <InventoryStructureVisualizer
+          isOpen={isInventoryVisualizerOpen}
+          onOpenChange={setIsInventoryVisualizerOpen}
+        />
+      )}
     </div>
   );
 }
-
-      
