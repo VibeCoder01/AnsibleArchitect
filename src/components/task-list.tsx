@@ -212,6 +212,22 @@ interface EditableParameter {
 
 const MANUAL_ENTRY_VALUE = "_INTERNAL_MANUAL_ROLE_SELECTION_";
 
+const compareParameters = (params1: Record<string, any>, params2: Record<string, any>): boolean => {
+  const keys1 = Object.keys(params1);
+  const keys2 = Object.keys(params2);
+
+  if (keys1.length !== keys2.length) {
+    return false; 
+  }
+
+  for (const key of keys1) {
+    if (!keys2.includes(key) || params1[key] !== params2[key]) {
+      return false; 
+    }
+  }
+  return true; 
+};
+
 export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [], hoveredTaskId, onSetHoveredTaskId }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
@@ -293,7 +309,23 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
         }
         return acc;
       }, {} as Record<string, any>);
-      onUpdateTask({ ...editingTask, name: tempTaskName, parameters: newParams, isPristine: false });
+      
+      let finalPristineStatus = editingTask.isPristine ?? false;
+
+      if (editingTask.isPristine) { 
+        const oldParams = editingTask.parameters || {};
+        const paramsHaveChanged = !compareParameters(oldParams, newParams);
+        if (paramsHaveChanged) {
+          finalPristineStatus = false;
+        }
+      }
+
+      onUpdateTask({ 
+        ...editingTask, 
+        name: tempTaskName, 
+        parameters: newParams, 
+        isPristine: finalPristineStatus 
+      });
       setEditingTask(null);
     }
   };
