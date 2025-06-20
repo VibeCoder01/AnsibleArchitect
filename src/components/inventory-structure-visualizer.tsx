@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Server, FolderTree, AlertTriangle, ToyBrick, Network, Maximize2, Minimize2 } from "lucide-react";
+import { Server, FolderTree, AlertTriangle, ToyBrick, Network, Maximize2, Minimize2, X } from "lucide-react";
 
 interface InventoryNode {
   id: string;
@@ -98,11 +98,9 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       if (groupData?.children && Array.isArray(groupData.children)) {
         groupData.children.forEach((childGroupName: string) => {
           if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) {
-             // Check if this child group is already part of the current node's direct path to prevent infinite recursion
             if (!path.includes(childGroupName)) {
                 node.children.push(buildNode(childGroupName, jsonData[childGroupName], [...path, childGroupName]));
             } else {
-                // If it's a recursive reference, just create a placeholder or skip
                 console.warn(`Recursive group reference detected: ${childGroupName} in path ${path.join(':')}`);
                  node.children.push({
                     id: `group:${path.join(':')}:${groupName}:child_ref:${childGroupName}`,
@@ -130,23 +128,20 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (jsonData.all) {
       rootNode = buildNode('all', jsonData.all, ['all']);
       initialExpanded.add(rootNode.id);
-      // Also expand direct children of 'all' that are groups
       rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
     } else {
-      // Create a synthetic root if 'all' group is not present
       rootNode = { id: 'group:__synthetic_root__', name: 'Inventory (Implicit Root)', type: 'group', children: [] };
       initialExpanded.add(rootNode.id);
       Object.keys(jsonData).forEach(key => {
         if (key !== '_meta' && typeof jsonData[key] === 'object' && jsonData[key] !== null) {
           const childNode = buildNode(key, jsonData[key], [key]);
           rootNode!.children.push(childNode);
-          if (childNode.type === 'group') { // Expand top-level groups
+          if (childNode.type === 'group') { 
             initialExpanded.add(childNode.id);
           }
         }
       });
-      if (rootNode.children.length === 0 && Object.keys(hostVars).length > 0 && !jsonData._meta){
-         // If no groups but _meta.hostvars exists (flat list of hosts)
+      if (rootNode.children.length === 0 && Object.keys(hostVars).length > 0 && !jsonData.all && !jsonData._meta?.hostvars){ // Adjusted condition slightly
          Object.keys(hostVars).forEach(hostName => {
             rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: []});
             processedHosts.add(hostName);
@@ -168,7 +163,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     }
 
     if (ungroupedHosts.size > 0 && rootNode) {
-        let ungroupedGroupNode = rootNode.children.find(c => c.name === 'ungrouped' && c.type === 'group');
+        let ungroupedGroupNode = rootNode.children.find(c => c.id === 'group:ungrouped' || c.name === 'ungrouped' && c.type === 'group');
         if (!ungroupedGroupNode) {
             ungroupedGroupNode = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
             if (rootNode.name === 'all' || rootNode.name === 'Inventory (Implicit Root)') {
@@ -204,7 +199,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       data = JSON.parse(jsonInput);
     } catch (e) {
       console.error("JSON Parsing Error:", e);
-      const errorMessage = `Invalid JSON syntax: ${(e as Error).message.split('\n')[0]}`;
+      const errorMessage = `Invalid JSON syntax: ${(e as Error).message.split('\\n')[0]}`;
       setError(errorMessage);
       setInventoryTree(null);
       toast({ title: "JSON Parsing Error", description: errorMessage, variant: "destructive" });
@@ -222,7 +217,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       setInventoryTree(result.tree);
       toast({ title: "Inventory Visualized", description: "Inventory structure parsed and displayed.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
     } else {
-      const fallbackError = "Could not build inventory tree. Unknown error or empty inventory.";
+      const fallbackError = "Could not build inventory tree. Ensure the JSON represents a valid Ansible inventory (--list output).";
       setError(fallbackError);
       setInventoryTree(null);
       toast({ title: "Visualization Error", description: fallbackError, variant: "destructive" });
