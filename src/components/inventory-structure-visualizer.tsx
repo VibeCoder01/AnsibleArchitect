@@ -67,6 +67,14 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
   const [dragStartOffset, setDragStartOffset] = React.useState<{ x: number; y: number } | null>(null);
   const dialogContentRef = React.useRef<HTMLDivElement>(null);
 
+  const clearVisualization = () => {
+    setInventoryTree(null);
+    setJsonInput("");
+    setError(null);
+    setZoomLevel(100);
+    setExpandedNodes(new Set());
+    setDialogPosition(null); 
+  };
 
   const parseAndBuildTree = (jsonData: any): { tree: InventoryNode | null; error: string | null } => {
     if (typeof jsonData !== 'object' || jsonData === null) {
@@ -100,6 +108,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
                 children: [],
               });
               processedHosts.add(hostName);
+              allHostsOnSystem.add(hostName); // Ensure hosts listed in groups are known
             } else {
               parseError = `Host entry in group '${groupName}' is not a string: ${JSON.stringify(hostName)}`;
             }
@@ -116,9 +125,10 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
             if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) {
                 node.children.push(buildNode(childGroupName, jsonData[childGroupName], [...path, childGroupName]));
             } else if (typeof childGroupName === 'string' && !jsonData[childGroupName]){
+                // Child group is declared but not defined as a top-level key (potentially an error or just a leaf group)
                 node.children.push({
                     id: `group:${path.join(':')}:${groupName}:child_def_missing:${childGroupName}`,
-                    name: `${childGroupName} (definition missing)`,
+                    name: `${childGroupName}`, // Display as is, might be an implicit group
                     type: 'group',
                     children: [], 
                 });
@@ -142,36 +152,38 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     let rootNode: InventoryNode | null = null;
     const initialExpanded = new Set<string>();
 
+    if (Object.keys(jsonData).length === 0) {
+        return { tree: null, error: "Empty inventory: The JSON object is empty." };
+    }
+    
     if (jsonData.all) {
       rootNode = buildNode('all', jsonData.all, ['all']);
       if (parseError) return { tree: null, error: parseError };
       initialExpanded.add(rootNode.id);
+      // Expand direct children of 'all' if they are groups
       rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
-    } else if (Object.keys(jsonData).length > 0 && !jsonData._meta && !Object.values(jsonData).some(v => typeof v === 'object' && v !== null && ('hosts' in v || 'children' in v))) {
-        rootNode = { id: 'group:__synthetic_flat_root__', name: 'Inventory (Flat List)', type: 'group', children: [] };
-        initialExpanded.add(rootNode.id);
-        Object.keys(jsonData).forEach(hostName => {
-            if(hostName !== '_meta'){
-                rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: [] });
-                processedHosts.add(hostName);
-            }
-        });
     } else {
+      // Handle inventories without an explicit 'all' group by creating a synthetic root
       rootNode = { id: 'group:__synthetic_root__', name: 'Inventory (Implicit Root)', type: 'group', children: [] };
       initialExpanded.add(rootNode.id);
       Object.keys(jsonData).forEach(key => {
         if (key !== '_meta' && typeof jsonData[key] === 'object' && jsonData[key] !== null) {
           const childNode = buildNode(key, jsonData[key], [key]);
-          if (parseError) { return; }
+          if (parseError) { return; } // Propagate error
           rootNode!.children.push(childNode);
           if (childNode.type === 'group' || childNode.type === 'all_group') {
             initialExpanded.add(childNode.id);
           }
+        } else if (key !== '_meta' && jsonData[key] === null) { // Handle top-level hosts declared with null value
+            rootNode!.children.push({ id: `host:${key}`, name: key, type: 'host', children: []});
+            processedHosts.add(key);
+            allHostsOnSystem.add(key);
         }
       });
       if (parseError) return { tree: null, error: parseError };
     }
     
+    // Consolidate ungrouped hosts
     const ungroupedHosts = new Set<string>();
     allHostsOnSystem.forEach(host => {
         if (!processedHosts.has(host)) {
@@ -179,6 +191,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         }
     });
     
+    // Add hosts from explicit "ungrouped" group if it exists
     if (jsonData.ungrouped?.hosts && Array.isArray(jsonData.ungrouped.hosts)) {
         jsonData.ungrouped.hosts.forEach((hostName: string) => {
             if(typeof hostName === 'string') ungroupedHosts.add(hostName);
@@ -188,12 +201,14 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (ungroupedHosts.size > 0 && rootNode) {
         let ungroupedGroupNode = rootNode.children.find(c => c.id === 'group:ungrouped' || (c.name === 'ungrouped' && c.type === 'group'));
         if (!ungroupedGroupNode) {
-            ungroupedGroupNode = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
-             if (rootNode.name === 'all' || rootNode.name === 'Inventory (Implicit Root)' || rootNode.name === 'Inventory (Flat List)') {
+            ungroupedGroupNode = { id: 'group:ungrouped_synthetic', name: 'ungrouped', type: 'group', children: []};
+            // Add to 'all' or synthetic root
+            if (rootNode.id === 'group:all' || rootNode.id === 'group:__synthetic_root__') {
                 rootNode.children.push(ungroupedGroupNode);
                 initialExpanded.add(ungroupedGroupNode.id); 
             }
         }
+         // Ensure we only add hosts not already captured elsewhere under 'ungrouped'
         ungroupedHosts.forEach(hostName => {
             if (!ungroupedGroupNode!.children.some(c => c.id === `host:${hostName}`)) {
                 ungroupedGroupNode!.children.push({
@@ -206,13 +221,12 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         });
     }
     
-    if (!rootNode || (rootNode.children.length === 0 && ungroupedHosts.size === 0 && Object.keys(hostVars).length === 0)) {
-        if (!jsonData._meta && Object.keys(jsonData).length === 0){
-             return { tree: null, error: "Empty inventory: The JSON object is empty." };
-        }
+    // Final check if the tree is still effectively empty
+    if (!rootNode || (rootNode.children.length === 0 && ungroupedHosts.size === 0 && Object.keys(hostVars).length === 0 && Object.keys(jsonData).filter(k => k !== '_meta').length === 0 )) {
         if (jsonData._meta && Object.keys(jsonData).length === 1 && Object.keys(hostVars).length === 0) {
              return { tree: null, error: "Empty inventory: Contains only _meta with no hostvars." };
         }
+        // If only _meta.hostvars has entries, create a simple list
         if (jsonData._meta && Object.keys(hostVars).length > 0 && !jsonData.all && Object.keys(jsonData).filter(k => k !== '_meta').length === 0) {
              rootNode = { id: 'group:__synthetic_hostvars_root__', name: 'Hosts (from _meta.hostvars)', type: 'group', children: [] };
              initialExpanded.add(rootNode.id);
@@ -228,14 +242,6 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     return { tree: rootNode, error: parseError };
   };
 
-  const clearVisualization = () => {
-    setInventoryTree(null);
-    setJsonInput("");
-    setError(null);
-    setZoomLevel(100);
-    setExpandedNodes(new Set());
-    setDialogPosition(null); 
-  };
 
   const handleVisualize = () => {
     if (!jsonInput.trim()) {
@@ -249,11 +255,10 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       data = JSON.parse(jsonInput);
     } catch (e) {
       console.error("JSON Parsing Error:", e);
-      let specificErrorMessage = "Invalid JSON syntax."; // Default message
+      let specificErrorMessage = "Invalid JSON syntax.";
       if (e instanceof Error && e.message) {
         specificErrorMessage = `Invalid JSON syntax: ${e.message.split('\n')[0]}`;
       } else if (typeof e === 'string') {
-        // Fallback if error is a string, though JSON.parse throws Error instances
         specificErrorMessage = `Invalid JSON syntax: ${e.split('\n')[0]}`;
       }
       setError(specificErrorMessage);
@@ -273,6 +278,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       setInventoryTree(result.tree);
       toast({ title: "Inventory Visualized", description: "Inventory structure parsed and displayed.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
     } else {
+      // This case should ideally be covered by result.error from parseAndBuildTree
       const fallbackError = "Could not build inventory tree. Ensure the JSON represents a valid Ansible inventory (--list output).";
       setError(fallbackError); 
       setInventoryTree(null);
@@ -294,7 +300,9 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
 
   const handleDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isMaximized || !dialogContentRef.current) return;
-    if ((e.target as HTMLElement).closest('button')) return;
+    // Prevent dragging if click target is a button or an element inside a button
+    if ((e.target as HTMLElement).closest('button, [role="button"]')) return;
+
 
     setIsDragging(true);
     const rect = dialogContentRef.current.getBoundingClientRect();
@@ -346,7 +354,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         left: '0px',
         width: '100vw',
         height: '100vh',
-        transform: 'none',
+        transform: 'none', 
         maxWidth: 'none',
         maxHeight: 'none',
         borderRadius: '0',
@@ -359,10 +367,11 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         transform: 'none', 
       };
     }
+    // Default: Centered, will be handled by Tailwind classes if no position is set
     return {}; 
   };
 
-  const dialogBaseClasses = "fixed z-50 flex flex-col w-full border bg-background shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg p-0";
+  const dialogBaseClasses = "fixed z-50 flex flex-col border bg-background shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg p-0";
   const dialogCenteringClasses = "left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]";
   const dialogSizingClassesMaximized = "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !left-0 !top-0 !translate-x-0 !translate-y-0";
   const dialogSizingClassesDefault = "w-[90vw] h-[85vh] sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw]";
@@ -371,19 +380,30 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
   if (isMaximized) {
     currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesMaximized);
   } else if (dialogPosition) {
+    // When dragged, we use inline styles for position, so don't need centering classes
     currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesDefault); 
   } else {
+    // Default, not dragged and not maximized: apply centering and default size
     currentDialogClasses = cn(dialogBaseClasses, dialogCenteringClasses, dialogSizingClassesDefault);
   }
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        // Optional: clear state when dialog closes if desired
+        // clearVisualization(); 
+      }
+      onOpenChange(open);
+    }}>
       <DialogContent 
         ref={dialogContentRef}
         className={currentDialogClasses}
         style={getDialogDynamicStyles()}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // onInteractOutside={(e) => { // Might be too aggressive
+        //   if (isDragging) e.preventDefault();
+        // }}
       >
         <DialogHeader 
           className={cn(
@@ -394,31 +414,25 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
           onMouseDown={handleDragMouseDown}
         >
           <DialogTitle className="font-headline">Visualize Inventory Structure (from ansible-inventory --list)</DialogTitle>
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0 mr-8"> {/* Added mr-8 here */}
             <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-7 h-7">
               {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
             </Button>
-            <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7">
-                <X className="w-3.5 h-3.5" />
-                <span className="sr-only">Close</span>
-              </Button>
-            </DialogClose>
            </div>
         </DialogHeader>
 
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           <div className="w-full md:w-96 p-3 border-b md:border-b-0 md:border-r flex flex-col flex-shrink-0">
             <Label htmlFor="jsonInventoryInput" className="mb-1.5 font-medium flex-shrink-0">Paste JSON Output:</Label>
-            <div className="flex-1 min-h-0 my-1.5"> 
-              <Textarea
-                id="jsonInventoryInput"
-                value={jsonInput}
-                onChange={(e) => setJsonInput(e.target.value)}
-                placeholder="Paste output of 'ansible-inventory --list' here..."
-                className="resize-none text-xs font-mono h-full w-full"
-              />
+            <div className="flex-1 min-h-0 my-1.5">
+                <Textarea
+                    id="jsonInventoryInput"
+                    value={jsonInput}
+                    onChange={(e) => setJsonInput(e.target.value)}
+                    placeholder="Paste output of 'ansible-inventory --list' here..."
+                    className="resize-none text-xs font-mono h-full w-full"
+                />
             </div>
             <Button onClick={handleVisualize} className="mt-auto w-full flex-shrink-0">Visualize</Button>
             {error && <p className="mt-2 text-sm text-destructive flex items-center flex-shrink-0"><AlertTriangle className="w-4 h-4 mr-1.5"/> {error}</p>}
