@@ -75,7 +75,8 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
 
     const hostVars = jsonData._meta?.hostvars || {};
     const allHostsOnSystem = new Set<string>(Object.keys(hostVars));
-    const processedHosts = new Set<string>(); 
+    const processedHosts = new Set<string>();
+    let parseError: string | null = null;
 
     const buildNode = (groupName: string, groupData: any, path: string[]): InventoryNode => {
       const nodeId = `group:${path.join(':')}:${groupName}`;
@@ -86,43 +87,54 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         children: [],
       };
 
-      if (groupData?.hosts && Array.isArray(groupData.hosts)) {
-        groupData.hosts.forEach((hostName: string) => {
-          if (typeof hostName === 'string') {
-            node.children.push({
-              id: `host:${hostName}`,
-              name: hostName,
-              type: 'host',
-              children: [],
-            });
-            processedHosts.add(hostName);
-          }
-        });
-      }
-
-      if (groupData?.children && Array.isArray(groupData.children)) {
-        groupData.children.forEach((childGroupName: string) => {
-          if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) {
-            if (!path.includes(childGroupName)) {
-                node.children.push(buildNode(childGroupName, jsonData[childGroupName], [...path, childGroupName]));
+      if (groupData?.hosts) {
+        if (!Array.isArray(groupData.hosts)) {
+          parseError = `Group '${groupName}' has a 'hosts' key that is not an array.`;
+        } else {
+          groupData.hosts.forEach((hostName: string) => {
+            if (typeof hostName === 'string') {
+              node.children.push({
+                id: `host:${hostName}`,
+                name: hostName,
+                type: 'host',
+                children: [],
+              });
+              processedHosts.add(hostName);
             } else {
-                console.warn(`Recursive group reference detected: ${childGroupName} in path ${path.join(':')}`);
+              parseError = `Host entry in group '${groupName}' is not a string: ${JSON.stringify(hostName)}`;
+            }
+          });
+        }
+      }
+      if (parseError) return node; // Stop further processing for this branch if an error occurred
+
+      if (groupData?.children) {
+         if (!Array.isArray(groupData.children)) {
+            parseError = `Group '${groupName}' has a 'children' key that is not an array.`;
+        } else {
+            groupData.children.forEach((childGroupName: string) => {
+            if (typeof childGroupName === 'string' && jsonData[childGroupName] && !path.includes(childGroupName)) {
+                node.children.push(buildNode(childGroupName, jsonData[childGroupName], [...path, childGroupName]));
+            } else if (typeof childGroupName === 'string' && !jsonData[childGroupName]){
+                node.children.push({
+                    id: `group:${path.join(':')}:${groupName}:child_def_missing:${childGroupName}`,
+                    name: `${childGroupName} (definition missing)`,
+                    type: 'group',
+                    children: [], 
+                });
+            } else if (path.includes(childGroupName)) {
+                 console.warn(`Recursive group reference detected and skipped: ${childGroupName} in path ${path.join(':')}`);
                  node.children.push({
-                    id: `group:${path.join(':')}:${groupName}:child_ref:${childGroupName}`,
+                    id: `group:${path.join(':')}:${groupName}:child_recursive:${childGroupName}`,
                     name: `${childGroupName} (recursive ref)`,
                     type: 'group',
                     children: [],
                 });
+            } else {
+                parseError = `Child group entry '${childGroupName}' in group '${groupName}' is invalid or malformed.`;
             }
-          } else if (typeof childGroupName === 'string' && !jsonData[childGroupName]){
-             node.children.push({
-                id: `group:${path.join(':')}:${groupName}:child:${childGroupName}`,
-                name: childGroupName,
-                type: 'group',
-                children: [], 
-             });
-          }
-        });
+            });
+        }
       }
       return node;
     };
@@ -132,30 +144,33 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
 
     if (jsonData.all) {
       rootNode = buildNode('all', jsonData.all, ['all']);
+      if (parseError) return { tree: null, error: parseError };
       initialExpanded.add(rootNode.id);
-      if (rootNode.children) { // Ensure children exist before iterating
-        rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
-      }
+      rootNode.children.filter(c => c.type === 'group' || c.type === 'all_group').forEach(child => initialExpanded.add(child.id));
+    } else if (Object.keys(jsonData).length > 0 && !jsonData._meta && !Object.values(jsonData).some(v => typeof v === 'object' && v !== null && ('hosts' in v || 'children' in v))) {
+        // Likely flat list of hosts if no 'all' group and not structured like groups
+        rootNode = { id: 'group:__synthetic_flat_root__', name: 'Inventory (Flat List)', type: 'group', children: [] };
+        initialExpanded.add(rootNode.id);
+        Object.keys(jsonData).forEach(hostName => {
+            if(hostName !== '_meta'){
+                rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: [] });
+                processedHosts.add(hostName);
+            }
+        });
     } else {
       rootNode = { id: 'group:__synthetic_root__', name: 'Inventory (Implicit Root)', type: 'group', children: [] };
       initialExpanded.add(rootNode.id);
       Object.keys(jsonData).forEach(key => {
         if (key !== '_meta' && typeof jsonData[key] === 'object' && jsonData[key] !== null) {
           const childNode = buildNode(key, jsonData[key], [key]);
+          if (parseError) { /* error will be returned outside loop */ return; }
           rootNode!.children.push(childNode);
-          if (childNode.type === 'group' || childNode.type === 'all_group') { // Ensure all_group type also expands
+          if (childNode.type === 'group' || childNode.type === 'all_group') {
             initialExpanded.add(childNode.id);
           }
         }
       });
-      if (rootNode.children.length === 0 && Object.keys(hostVars).length > 0){
-         Object.keys(hostVars).forEach(hostName => {
-            if (!rootNode!.children.some(c => c.id === `host:${hostName}`)) { // Avoid duplicates
-                rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: []});
-                processedHosts.add(hostName);
-            }
-         });
-      }
+      if (parseError) return { tree: null, error: parseError };
     }
     
     const ungroupedHosts = new Set<string>();
@@ -175,7 +190,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         let ungroupedGroupNode = rootNode.children.find(c => c.id === 'group:ungrouped' || (c.name === 'ungrouped' && c.type === 'group'));
         if (!ungroupedGroupNode) {
             ungroupedGroupNode = { id: 'group:ungrouped', name: 'ungrouped', type: 'group', children: []};
-            if (rootNode.name === 'all' || rootNode.name === 'Inventory (Implicit Root)') {
+             if (rootNode.name === 'all' || rootNode.name === 'Inventory (Implicit Root)' || rootNode.name === 'Inventory (Flat List)') {
                 rootNode.children.push(ungroupedGroupNode);
                 initialExpanded.add(ungroupedGroupNode.id); 
             }
@@ -192,8 +207,27 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         });
     }
     
+    if (!rootNode || rootNode.children.length === 0 && ungroupedHosts.size === 0 && Object.keys(hostVars).length === 0) {
+        if (!jsonData._meta && Object.keys(jsonData).length === 0){
+             return { tree: null, error: "Empty inventory: The JSON object is empty." };
+        }
+        if (jsonData._meta && Object.keys(jsonData).length === 1 && Object.keys(hostVars).length === 0) {
+             return { tree: null, error: "Empty inventory: Contains only _meta with no hostvars." };
+        }
+        // If it has _meta.hostvars but no groups, treat hostvars as ungrouped
+        if (jsonData._meta && Object.keys(hostVars).length > 0 && !jsonData.all && Object.keys(jsonData).filter(k => k !== '_meta').length === 0) {
+             rootNode = { id: 'group:__synthetic_hostvars_root__', name: 'Hosts (from _meta.hostvars)', type: 'group', children: [] };
+             initialExpanded.add(rootNode.id);
+             Object.keys(hostVars).forEach(hostName => {
+                rootNode!.children.push({ id: `host:${hostName}`, name: hostName, type: 'ungrouped_host', children: [] });
+             });
+        } else if (!parseError) { // Only set this fallback error if no specific parse error occurred
+            return { tree: null, error: "Could not determine inventory structure. Ensure 'all' group or other top-level groups are defined, or _meta.hostvars is present." };
+        }
+    }
+    
     setExpandedNodes(initialExpanded);
-    return { tree: rootNode, error: null };
+    return { tree: rootNode, error: parseError };
   };
 
 
@@ -228,7 +262,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       toast({ title: "Inventory Visualized", description: "Inventory structure parsed and displayed.", className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300" });
     } else {
       const fallbackError = "Could not build inventory tree. Ensure the JSON represents a valid Ansible inventory (--list output).";
-      setError(fallbackError);
+      setError(fallbackError); // Should be covered by parseAndBuildTree's errors now
       setInventoryTree(null);
       toast({ title: "Visualization Error", description: fallbackError, variant: "destructive" });
     }
@@ -248,7 +282,6 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
 
   const handleDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isMaximized || !dialogContentRef.current) return;
-     // Allow dragging only by the header, not by internal buttons.
     if ((e.target as HTMLElement).closest('button')) return;
 
     setIsDragging(true);
@@ -267,7 +300,6 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
       let newX = e.clientX - dragStartOffset.x;
       let newY = e.clientY - dragStartOffset.y;
 
-      // Basic boundary collision detection
       const { innerWidth, innerHeight } = window;
       const dialogRect = dialogContentRef.current.getBoundingClientRect();
       newX = Math.max(0, Math.min(newX, innerWidth - dialogRect.width));
@@ -283,7 +315,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     if (isDragging) {
       document.addEventListener('mousemove', handleDragMouseMove);
       document.addEventListener('mouseup', handleDragMouseUp);
-      document.body.style.userSelect = 'none'; // Prevent text selection during drag
+      document.body.style.userSelect = 'none'; 
     } else {
       document.body.style.userSelect = '';
     }
@@ -315,24 +347,31 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         transform: 'none', 
       };
     }
-    return {}; // Fallback to CSS class-based centering
+    return {}; 
   };
 
-  const dialogBaseClasses = "fixed z-50 grid w-full gap-4 border bg-background p-0 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg";
+  const dialogBaseClasses = "fixed z-50 flex flex-col w-full border bg-background shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg";
   const dialogCenteringClasses = "left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]";
-  const dialogSizingClassesMaximized = "!w-screen !h-screen !max-w-none !max-h-none !rounded-none";
+  const dialogSizingClassesMaximized = "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !left-0 !top-0 !translate-x-0 !translate-y-0";
   const dialogSizingClassesDefault = "w-[90vw] h-[85vh] sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[70vw]";
 
   let currentDialogClasses = dialogBaseClasses;
   if (isMaximized) {
     currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesMaximized);
   } else if (dialogPosition) {
-     // When dragged, we don't want the centering translate, but keep default sizing
-    currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesDefault);
+    currentDialogClasses = cn(dialogBaseClasses, dialogSizingClassesDefault); // Keep default size when dragged
   } else {
-    // Default, centered, not maximized
     currentDialogClasses = cn(dialogBaseClasses, dialogCenteringClasses, dialogSizingClassesDefault);
   }
+
+  const clearVisualization = () => {
+    setInventoryTree(null);
+    setJsonInput("");
+    setError(null);
+    setZoomLevel(100);
+    setExpandedNodes(new Set());
+    setDialogPosition(null);
+  };
 
 
   return (
@@ -341,7 +380,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
         ref={dialogContentRef}
         className={currentDialogClasses}
         style={getDialogDynamicStyles()}
-        onOpenAutoFocus={(e) => e.preventDefault()} // Prevent auto-focus on first element which can interfere with dragging
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader 
           className={cn(
@@ -352,7 +391,7 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
           onMouseDown={handleDragMouseDown}
         >
           <DialogTitle className="font-headline">Visualize Inventory Structure (from ansible-inventory --list)</DialogTitle>
-          <div className="flex items-center gap-1 flex-shrink-0"> {/* Reduced gap */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             <Button variant="ghost" size="icon" onClick={() => setIsMaximized(!isMaximized)} className="w-7 h-7">
               {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
@@ -366,26 +405,26 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
            </div>
         </DialogHeader>
 
-        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden"> {/* Added overflow-hidden */}
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           <div className="w-full md:w-96 p-3 border-b md:border-b-0 md:border-r flex flex-col flex-shrink-0">
             <Label htmlFor="jsonInventoryInput" className="mb-1.5 font-medium flex-shrink-0">Paste JSON Output:</Label>
-            <div className="flex-1 min-h-0 my-1.5"> {/* Wrapper for textarea */}
+            <div className="flex-1 min-h-0 my-1.5"> 
               <Textarea
                 id="jsonInventoryInput"
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
                 placeholder="Paste output of 'ansible-inventory --list' here..."
-                className="resize-none text-xs font-mono h-full w-full" // Allow to fill wrapper
+                className="resize-none text-xs font-mono h-full w-full"
               />
             </div>
-            <Button onClick={handleVisualize} className="mt-auto w-full flex-shrink-0">Visualize</Button> {/* mt-auto to push to bottom */}
+            <Button onClick={handleVisualize} className="mt-auto w-full flex-shrink-0">Visualize</Button>
             {error && <p className="mt-2 text-sm text-destructive flex items-center flex-shrink-0"><AlertTriangle className="w-4 h-4 mr-1.5"/> {error}</p>}
           </div>
 
           <div className="flex-1 p-3 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-2 flex-shrink-0">
                 <Label htmlFor="zoomSlider" className="text-sm">Zoom: {zoomLevel}%</Label>
-                <Button variant="outline" size="sm" onClick={() => { setInventoryTree(null); setJsonInput(""); setError(null); setZoomLevel(100); setExpandedNodes(new Set()); setDialogPosition(null); }} className="text-xs">Clear</Button>
+                <Button variant="outline" size="sm" onClick={clearVisualization} className="text-xs">Clear</Button>
             </div>
             <Slider
                 id="zoomSlider"
@@ -420,5 +459,3 @@ export function InventoryStructureVisualizer({ isOpen, onOpenChange }: Inventory
     </Dialog>
   );
 }
-
-    
