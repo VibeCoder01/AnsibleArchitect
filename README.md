@@ -1,6 +1,8 @@
 # Ansible Architect
 
-Ansible Architect is a Next.js application that helps you design and visualize Ansible playbooks. It provides a drag-and-drop builder, playbook validation, and YAML export so you can create automation tasks quickly.
+Ansible Architect is a Next.js application that helps you design and visualize Ansible playbooks.
+It provides a drag-and-drop builder, playbook validation, and YAML export so you can create automation tasks quickly.
+Provides an Inventory Graph Visualizer.
 
 ## Prerequisites
 
