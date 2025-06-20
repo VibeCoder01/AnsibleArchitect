@@ -693,6 +693,7 @@ export function AnsibleArchitectLayout() {
         let topLevelGroupCount = 0;
         const warnings: string[] = [];
         const errors: string[] = [];
+        const processedHosts = new Set<string>();
 
         function processGroup(groupName: string, groupData: any, path: string) {
             if (typeof groupData !== 'object' || groupData === null) {
@@ -701,10 +702,12 @@ export function AnsibleArchitectLayout() {
             }
             
             if (groupName === 'all' && groupData.hosts && typeof groupData.hosts === 'object' && groupData.hosts !== null) {
+
                  // Count hosts directly under 'all' group if they are defined there
                 Object.keys(groupData.hosts).forEach(hostName => {
                     hostCount++;
                     if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
+
                        warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
                     }
                 });
@@ -715,10 +718,13 @@ export function AnsibleArchitectLayout() {
                 if (typeof groupData.hosts !== 'object' || groupData.hosts === null || Array.isArray(groupData.hosts)) {
                     errors.push(`'hosts' key in group '${path}' must be an object (dictionary).`);
                 } else {
+
                      if (groupName !== 'all') { // Avoid double counting hosts if also under 'all'
                         hostCount += Object.keys(groupData.hosts).length;
                      }
+
                     for (const hostName in groupData.hosts) {
+                        processedHosts.add(hostName);
                         if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
                            warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
                         }
@@ -751,6 +757,8 @@ export function AnsibleArchitectLayout() {
              topLevelGroupCount++;
              processGroup(groupName, parsedInventory[groupName], groupName);
         }
+
+        hostCount = processedHosts.size;
         
         if (errors.length > 0) {
              toast({
@@ -760,7 +768,7 @@ export function AnsibleArchitectLayout() {
             });
         } else {
             let summary = `File "${fileName}" (YAML) syntax is valid. `;
-            summary += `Found ${topLevelGroupCount} top-level group(s) and an estimated ${hostCount} host(s) within them.`;
+            summary += `Found ${topLevelGroupCount} top-level group(s) and ${hostCount} unique host(s).`;
             if (warnings.length > 0) {
                  summary += ` Warnings: ${warnings.join("; ")}`;
                  toast({
