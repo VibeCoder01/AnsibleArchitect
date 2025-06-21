@@ -368,7 +368,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                 onMouseLeave={() => onSetHoveredTaskId(null)}
               >
                 <div className="flex items-center p-3">
-                  <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none" aria-label="Drag to reorder task">
+                  <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none flex-shrink-0" aria-label="Drag to reorder task">
                     <GripVertical className="w-4 h-4 text-muted-foreground" />
                   </Button>
                   <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
@@ -378,15 +378,14 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                   </div>
                   <div className={cn(
                     "flex items-center space-x-0.5 transition-opacity flex-shrink-0 ml-2",
-                    task.id === hoveredTaskId ? "opacity-100" : "opacity-0",
-                    "pointer-events-none"
+                    task.id === hoveredTaskId ? "opacity-100" : "opacity-0"
                   )}>
                     {!task.rawYAML && (
-                      <Button variant="ghost" size="icon" className="w-7 h-7 pointer-events-auto" onClick={() => openEditModal(task)} aria-label="Edit task">
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
                         <Edit3 className="w-3.5 h-3.5" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="w-7 h-7 pointer-events-auto" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
                       <Trash2 className="w-3.5 h-3.5 text-destructive" />
                     </Button>
                   </div>
@@ -522,3 +521,5 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     </ScrollArea>
   );
 }
+
+    
