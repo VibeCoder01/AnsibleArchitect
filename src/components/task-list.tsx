@@ -367,7 +367,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                 onMouseEnter={() => onSetHoveredTaskId(task.id)}
                 onMouseLeave={() => onSetHoveredTaskId(null)}
               >
-                <div className="flex items-center p-3">
+                <div className="flex items-center p-3 pr-16">
                   <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none" aria-label="Drag to reorder task">
                     <GripVertical className="w-4 h-4 text-muted-foreground" />
                   </Button>
@@ -376,20 +376,23 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                     <CardTitle className="text-sm font-medium text-card-foreground leading-tight truncate" title={task.name}>{task.name}</CardTitle>
                     <CardDescription className="text-xs truncate" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
                   </div>
-                  <div className={cn(
-                    "flex items-center space-x-0.5 transition-opacity flex-shrink-0",
-                    task.id === hoveredTaskId ? "opacity-100" : "opacity-0"
-                  )}>
-                    {!task.rawYAML && (
-                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
-                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                    </Button>
-                  </div>
                 </div>
+
+                <div className={cn(
+                  "absolute top-1/2 -translate-y-1/2 right-2 flex items-center space-x-0.5 transition-opacity flex-shrink-0",
+                  task.id === hoveredTaskId ? "opacity-100" : "opacity-0",
+                  "pointer-events-none" // Make container non-interactive initially
+                )}>
+                  {!task.rawYAML && (
+                    <Button variant="ghost" size="icon" className="w-7 h-7 pointer-events-auto" onClick={() => openEditModal(task)} aria-label="Edit task">
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" className="w-7 h-7 pointer-events-auto" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+
                 {task.rawYAML ? (
                    <CardContent className="px-3 pb-2 pt-0">
                       <pre className="font-code bg-muted/20 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
@@ -520,4 +523,3 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     </ScrollArea>
   );
 }
-
