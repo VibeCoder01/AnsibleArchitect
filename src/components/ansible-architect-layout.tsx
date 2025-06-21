@@ -1,6 +1,7 @@
 
 "use client";
 import * as React from "react";
+import dynamic from 'next/dynamic';
 import { AnsibleArchitectIcon } from "@/components/icons/ansible-architect-icon";
 import { ModulePalette } from "@/components/module-palette";
 import { TaskList } from "@/components/task-list";
@@ -16,8 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { InventoryStructureVisualizer } from "@/components/inventory-structure-visualizer";
 import { v4 as uuidv4 } from 'uuid';
+
+const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
+  ssr: false,
+});
 
 
 const MIN_COLUMN_WIDTH = 150; 
@@ -1248,4 +1252,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
