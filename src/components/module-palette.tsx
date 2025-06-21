@@ -72,10 +72,10 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
               const GroupIcon = group.icon || PuzzleIcon;
               return (
                 <AccordionItem value={group.name} key={group.name} className="border bg-card shadow-sm rounded-md overflow-hidden">
-                  <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline hover:bg-muted/50 transition-colors">
+                  <AccordionTrigger className="px-3 py-2 text-base hover:no-underline hover:bg-muted/50 transition-colors">
                     <div className="flex items-center space-x-2">
                       <GroupIcon className="w-4 h-4 text-primary" />
-                      <span className="font-medium text-card-foreground">{group.name}</span>
+                      <span className="font-semibold text-card-foreground">{group.name}</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="bg-background/20">
