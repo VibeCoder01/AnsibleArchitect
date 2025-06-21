@@ -355,7 +355,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
               <Card
                 key={task.id}
                 className={cn(
-                  "shadow-sm hover:shadow-md transition-all group relative",
+                  "shadow-sm hover:shadow-md transition-all relative",
                   task.isPristine ? "bg-primary/5 border-destructive" : "bg-card",
                   { 'ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
                 )}
@@ -376,7 +376,10 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                     <CardTitle className="text-sm font-medium text-card-foreground leading-tight truncate" title={task.name}>{task.name}</CardTitle>
                     <CardDescription className="text-xs truncate" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
                   </div>
-                  <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <div className={cn(
+                    "flex items-center space-x-0.5 transition-opacity flex-shrink-0",
+                    task.id === hoveredTaskId ? "opacity-100" : "opacity-0"
+                  )}>
                     {!task.rawYAML && (
                       <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
                         <Edit3 className="w-3.5 h-3.5" />
