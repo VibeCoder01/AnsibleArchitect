@@ -889,10 +889,10 @@ export function AnsibleArchitectLayout() {
             <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
             <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
           </TabsList>
-          <TabsContent value="modules" className="flex-1 flex flex-col min-h-0">
+          <TabsContent value="modules" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
-          <TabsContent value="project" className="flex-1 flex flex-col min-h-0">
+          <TabsContent value="project" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
             <ProjectExplorer 
                 project={project} 
                 onFileSelect={handleFileSelect} 
@@ -952,8 +952,12 @@ export function AnsibleArchitectLayout() {
                 </>
                 )}
             </div>
-
-            <div className="flex-grow min-h-0 flex">
+            <div
+                className="flex-grow min-h-0 flex"
+                onDrop={handleDropOnTaskList}
+                onDragOver={handleDragOverTaskList}
+                onDragLeave={handleDragLeaveTaskList}
+            >
                 {activePlaybook ? (
                 <>
                     <div
@@ -961,23 +965,16 @@ export function AnsibleArchitectLayout() {
                         className="min-w-0 bg-card shadow-sm flex flex-col border-r"
                     >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <div
-                            className="flex-grow min-h-0"
-                            onDrop={handleDropOnTaskList}
-                            onDragOver={handleDragOverTaskList}
-                            onDragLeave={handleDragLeaveTaskList}
-                        >
-                            <TaskList
-                                tasks={activePlaybook.tasks}
-                                onUpdateTask={updateTaskInActivePlaybook}
-                                onDeleteTask={deleteTaskInActivePlaybook}
-                                onMoveTask={moveTaskInActivePlaybook}
-                                definedRoles={definedRoles}
-                                hoveredTaskId={hoveredTaskId}
-                                onSetHoveredTaskId={setHoveredTaskId}
-                                isDraggingOver={isDraggingOverTaskList}
-                            />
-                        </div>
+                        <TaskList
+                            tasks={activePlaybook.tasks}
+                            onUpdateTask={updateTaskInActivePlaybook}
+                            onDeleteTask={deleteTaskInActivePlaybook}
+                            onMoveTask={moveTaskInActivePlaybook}
+                            definedRoles={definedRoles}
+                            hoveredTaskId={hoveredTaskId}
+                            onSetHoveredTaskId={setHoveredTaskId}
+                            isDraggingOver={isDraggingOverTaskList}
+                        />
                     </div>
 
                     <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
@@ -1050,7 +1047,7 @@ export function AnsibleArchitectLayout() {
       {/* Actions Panel */}
       <div 
         style={{ flex: `0 0 ${actionsPanelWidth}px` }}
-        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
       >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <ScrollArea className="flex-1 min-h-0">
@@ -1222,3 +1219,5 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
+    
