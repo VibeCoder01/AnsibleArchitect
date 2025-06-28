@@ -102,16 +102,28 @@ function buildFileTree(files: Project['files']): FileTreeNode[] {
 }
 
 
-const TreeNode: React.FC<{
+interface TreeNodeProps {
   node: FileTreeNode;
   level: number;
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
   onAcceptFolder: (path: string) => void;
   onDeleteFolder: (path: string) => void;
-  isExpanded: boolean;
+  expandedNodes: Set<string>;
   onToggleExpand: (path: string) => void;
-}> = ({ node, level, onFileSelect, activeFilePath, onAcceptFolder, onDeleteFolder, isExpanded, onToggleExpand }) => {
+}
+
+const TreeNode: React.FC<TreeNodeProps> = ({
+  node,
+  level,
+  onFileSelect,
+  activeFilePath,
+  onAcceptFolder,
+  onDeleteFolder,
+  expandedNodes,
+  onToggleExpand,
+}) => {
+  const isExpanded = expandedNodes.has(node.path);
 
   const handleNodeClick = () => {
     if (node.type === 'file') {
@@ -130,7 +142,6 @@ const TreeNode: React.FC<{
     e.stopPropagation();
     onDeleteFolder(node.path);
   };
-
 
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
   const isActive = node.path === activeFilePath;
@@ -185,16 +196,16 @@ const TreeNode: React.FC<{
       {isExpanded && node.children && (
         <div className="overflow-hidden">
           {node.children.map(child => (
-            <TreeNode 
-                key={child.path} 
-                node={child} 
-                level={level + 1} 
-                onFileSelect={onFileSelect} 
-                activeFilePath={activeFilePath} 
-                onAcceptFolder={onAcceptFolder}
-                onDeleteFolder={onDeleteFolder}
-                isExpanded={isExpanded}
-                onToggleExpand={onToggleExpand}
+            <TreeNode
+              key={child.path}
+              node={child}
+              level={level + 1}
+              onFileSelect={onFileSelect}
+              activeFilePath={activeFilePath}
+              onAcceptFolder={onAcceptFolder}
+              onDeleteFolder={onDeleteFolder}
+              expandedNodes={expandedNodes}
+              onToggleExpand={onToggleExpand}
             />
           ))}
         </div>
@@ -233,7 +244,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
       setCustomExpandedNodes(initialNodes);
       setExpandMode('custom');
     }
-  }, [fileTree]);
+  }, [project]); // Rerun when project changes to reset expansion for new projects
 
   const getAllDirectoryPaths = React.useCallback((nodes: FileTreeNode[]): string[] => {
     const paths: string[] = [];
@@ -286,7 +297,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
         activeFilePath={activeFilePath}
         onAcceptFolder={onAcceptFolder}
         onDeleteFolder={onDeleteFolder}
-        isExpanded={expandedNodes.has(node.path)}
+        expandedNodes={expandedNodes}
         onToggleExpand={handleNodeToggle}
       />
     ));

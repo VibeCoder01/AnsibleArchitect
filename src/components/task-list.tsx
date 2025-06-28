@@ -40,6 +40,10 @@ interface TaskListProps {
   definedRoles?: AnsibleRoleRef[];
   hoveredTaskId: string | null;
   onSetHoveredTaskId: (taskId: string | null) => void;
+  onDrop: (event: React.DragEvent) => void;
+  onDragOver: (event: React.DragEvent) => void;
+  onDragLeave: (event: React.DragEvent) => void;
+  isDraggingOver: boolean;
 }
 
 const moduleIcons: Record<string, React.ElementType> = {
@@ -228,7 +232,19 @@ const compareParameters = (params1: Record<string, any>, params2: Record<string,
   return true; 
 };
 
-export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, definedRoles = [], hoveredTaskId, onSetHoveredTaskId }: TaskListProps) {
+export function TaskList({ 
+  tasks, 
+  onUpdateTask, 
+  onDeleteTask, 
+  onMoveTask, 
+  definedRoles = [], 
+  hoveredTaskId, 
+  onSetHoveredTaskId,
+  onDrop,
+  onDragOver,
+  onDragLeave,
+  isDraggingOver
+}: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
   const [tempTaskName, setTempTaskName] = React.useState<string>("");
   const [editableParameters, setEditableParameters] = React.useState<EditableParameter[]>([]);
@@ -340,7 +356,16 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
 
 
   return (
-    <ScrollArea className="h-full p-0.5 flex-grow">
+    <ScrollArea
+      className={cn(
+        "h-full p-3 flex-grow transition-colors",
+        isDraggingOver ? 'bg-primary/5' : ''
+      )}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      aria-dropeffect="copy"
+    >
       {tasks.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
           <Puzzle className="w-12 h-12 mx-auto mb-3 opacity-60" />
@@ -521,5 +546,3 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
     </ScrollArea>
   );
 }
-
-    

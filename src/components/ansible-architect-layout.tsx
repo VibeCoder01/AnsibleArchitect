@@ -445,7 +445,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleDropOnTaskList = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDropOnTaskList = (event: React.DragEvent) => {
     event.preventDefault();
     setIsDraggingOverTaskList(false);
     if (!activePlaybookId) { 
@@ -464,7 +464,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleDragOverTaskList = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOverTaskList = (event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     if (!isDraggingOverTaskList) setIsDraggingOverTaskList(true);
@@ -954,11 +954,7 @@ export function AnsibleArchitectLayout() {
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
                         <div 
-                          className={`flex-grow overflow-auto p-3 transition-colors ${isDraggingOverTaskList ? 'bg-primary/5' : ''}`}
-                          onDrop={handleDropOnTaskList}
-                          onDragOver={handleDragOverTaskList}
-                          onDragLeave={handleDragLeaveTaskList}
-                          aria-dropeffect="copy"
+                          className="flex-grow overflow-hidden"
                         >
                             <TaskList
                             tasks={p.tasks}
@@ -968,6 +964,10 @@ export function AnsibleArchitectLayout() {
                             definedRoles={definedRoles}
                             hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
                             onSetHoveredTaskId={setHoveredTaskId}
+                            onDrop={handleDropOnTaskList}
+                            onDragOver={handleDragOverTaskList}
+                            onDragLeave={handleDragLeaveTaskList}
+                            isDraggingOver={isDraggingOverTaskList}
                             />
                         </div>
                       </div>
