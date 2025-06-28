@@ -905,6 +905,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
+  const activeFilePath = mainView === 'editor' ? activeEditorFile?.path ?? null : activeDesignerFileId;
 
   if (!isClientReady) {
     return (
@@ -941,7 +942,7 @@ export function AnsibleArchitectLayout() {
              <ProjectExplorer 
                 project={project} 
                 onFileSelect={handleFileSelect} 
-                activeFilePath={activeEditorFile?.path || activeDesignerFileId || null} 
+                activeFilePath={activeFilePath} 
                 onCreateDefaultProject={handleCreateDefaultProject}
                 onAcceptFolder={handleAcceptFolder}
                 onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
