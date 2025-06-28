@@ -152,12 +152,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         className={cn(
           "flex items-center justify-between space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm whitespace-nowrap",
           isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
-          node.isDefault && !isActive && "text-muted-foreground italic"
+          node.isDefault && !isActive && "text-destructive"
         )}
         onClick={handleNodeClick}
       >
         <div className="flex items-center space-x-2 min-w-0">
-          <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' ? 'text-primary' : (node.isDefault ? 'text-muted-foreground' : 'text-foreground'))} />
+          <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' ? 'text-primary' : (node.isDefault ? 'text-destructive' : 'text-foreground'))} />
           <span className="truncate" title={node.name}>{node.name}</span>
         </div>
         
@@ -330,7 +330,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
     <TooltipProvider>
       <div className="h-full flex flex-col">
         <div className="p-3 border-b flex-shrink-0 flex items-center justify-between">
-          <h3 className="font-semibold text-base truncate" title={project.name}>{project.name}</h3>
+          <h3 className="font-semibold text-base truncate whitespace-nowrap" title={project.name}>{project.name}</h3>
            <Tooltip>
                 <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" className="w-7 h-7" onClick={handleToggleExpandAll}>

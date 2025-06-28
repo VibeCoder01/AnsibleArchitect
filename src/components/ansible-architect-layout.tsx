@@ -719,10 +719,19 @@ export function AnsibleArchitectLayout() {
 
   const confirmDelete = () => {
     if (itemToConfirmDelete) {
+        // If the file being deleted is open in the editor, close the editor view
         if (itemToConfirmDelete.type === 'file' && activeEditorFile?.path === itemToConfirmDelete.path) {
           setActiveEditorFile(null);
           setMainView('designer');
         }
+        
+        // If the file being deleted is open in the designer, close its tab
+        if (itemToConfirmDelete.type === 'file' && designerFiles.some(f => f.id === itemToConfirmDelete!.path)) {
+            const mockEvent = { stopPropagation: () => {} };
+            handleCloseFile(itemToConfirmDelete.path, mockEvent);
+        }
+
+        // Perform the actual deletion from the project
         handleDeleteFileOrFolder(itemToConfirmDelete.path);
     }
     setItemToConfirmDelete(null);
@@ -895,6 +904,7 @@ export function AnsibleArchitectLayout() {
     toast({ title: "Project Created", description: `Created "${newProject.name}" with ${defaultProjectFiles.length} files.` });
   };
 
+  const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
 
   if (!isClientReady) {
     return (
@@ -988,14 +998,33 @@ export function AnsibleArchitectLayout() {
                 </>
                 )}
               </div>
-              {activeDesignerFile && project?.files.some(f => f.path === activeDesignerFile.id) && (
-                 <Button size="sm" onClick={handleSaveDesignerFile}>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save to Project
-                 </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {activeDesignerFile && project?.files.some(f => f.path === activeDesignerFile.id) && (
+                  <>
+                    {activeDesignerFileIsDefault && (
+                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeDesignerFile.id)}>
+                        <Check className="w-4 h-4 mr-2" />
+                        Accept File
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={handleSaveDesignerFile}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save to Project
+                    </Button>
+                     <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeDesignerFile.id, 'file')}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete File
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex-grow min-h-0 flex">
+            <div 
+              className="flex-grow min-h-0 flex"
+              onDrop={handleDropOnTaskList}
+              onDragOver={handleDragOverTaskList}
+              onDragLeave={handleDragLeaveTaskList}
+            >
                 {activeDesignerFile ? (
                 <>
                     <div
@@ -1003,12 +1032,7 @@ export function AnsibleArchitectLayout() {
                         className="min-w-0 bg-card shadow-sm flex flex-col border-r"
                     >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">YAML Blocks</h2>
-                        <div
-                            className="flex-grow min-h-0"
-                            onDrop={handleDropOnTaskList}
-                            onDragOver={handleDragOverTaskList}
-                            onDragLeave={handleDragLeaveTaskList}
-                            >
+                        <div className="flex-grow min-h-0">
                             <TaskList
                                 tasks={activeDesignerFile.tasks}
                                 onUpdateTask={updateTaskInActiveFile}
@@ -1096,22 +1120,22 @@ export function AnsibleArchitectLayout() {
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-2">
-              <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
               </Button>
               <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
               
-              <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
               </Button>
               
               <Separator className="my-2"/>
 
-              <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New File
               </Button>
               <Separator className="my-2"/>
-              <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate YAML File
               </Button>
               <input
@@ -1121,15 +1145,15 @@ export function AnsibleArchitectLayout() {
                 accept=".yaml,.yml"
                 className="hidden"
               />
-              <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export Active File YAML
               </Button>
-              <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
                 Copy Active File YAML
               </Button>
               <Separator className="my-2"/>
-              <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
               </Button>
               <input
@@ -1139,20 +1163,20 @@ export function AnsibleArchitectLayout() {
                 accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
                 className="hidden"
               />
-              <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
               </Button>
               <Separator className="my-2"/>
-              <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+              <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                 <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
               </Button>
               <Separator className="my-2"/>
-              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
                 <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
                 </a>
               </Button>
-              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
                 <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
                 </a>
