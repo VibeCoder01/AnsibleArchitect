@@ -729,50 +729,57 @@ export function AnsibleArchitectLayout() {
       { path: 'ansible.cfg', content: '[defaults]\ninventory = ./inventories\nroles_path = ./roles\n' },
       { path: 'requirements.yml', content: '# collections:\n#   - name: community.general\n' },
       { path: 'site.yml', content: '- import_playbook: playbooks/webservers.yml\n- import_playbook: playbooks/dbservers.yml\n' },
-      { path: 'README.md', content: '# Ansible Project\n\nThis is a default project structure.\n' },
+      { path: 'README.md', content: '# Ansible Project\n\nThis is a default project structure created by Ansible Architect.\n' },
+      
       // Inventories
-      { path: 'inventories/production/hosts', content: '[webservers]\nweb1.example.com\n\n[dbservers]\ndb1.example.com\n' },
-      { path: 'inventories/production/group_vars/all.yml', content: '# Variables for all production hosts\n' },
-      { path: 'inventories/production/group_vars/webservers.yml', content: 'http_port: 80\n' },
+      { path: 'inventories/production/hosts', content: '[webservers]\nweb1.example.com ansible_host=192.168.1.10\nweb2.example.com ansible_host=192.168.1.11\n\n[dbservers]\ndb1.example.com ansible_host=192.168.1.20\n' },
+      { path: 'inventories/production/group_vars/all.yml', content: '# Variables for all hosts in the production inventory\nansible_user: prod_user\n' },
+      { path: 'inventories/production/group_vars/webservers.yml', content: 'http_port: 8080\n' },
       { path: 'inventories/production/host_vars/web1.example.com.yml', content: 'specific_var: value_for_web1\n' },
       { path: 'inventories/production/host_vars/db1.example.com.yml', content: 'db_version: 14\n' },
-      { path: 'inventories/staging/hosts', content: '[webservers]\nstage-web1.example.com\n' },
+      { path: 'inventories/staging/hosts', content: '[webservers]\nstage-web1.example.com ansible_host=10.0.0.10\n\n[all:vars]\nansible_user: stage_user\n' },
       { path: 'inventories/staging/group_vars/all.yml', content: '# Variables for all staging hosts\n' },
       { path: 'inventories/staging/host_vars/.gitkeep', content: '' },
-      // Global vars
-      { path: 'group_vars/all.yml', content: '# Global variables applied to all hosts\n' },
-      { path: 'host_vars/localhost.yml', content: 'ansible_connection: local\n' },
+      
+      // Global vars (less common, but good to show)
+      { path: 'group_vars/all.yml', content: '# Global variables applied to all hosts, in all inventories.\n# Use inventories/<env>/group_vars/all.yml for environment-specific vars.\nntp_server: ntp.example.com\n' },
+      { path: 'host_vars/localhost.yml', content: '# Variables specifically for localhost, useful for local actions.\nansible_connection: local\nansible_python_interpreter: "{{ ansible_playbook_python }}"\n' },
+      
       // Playbooks
-      { path: 'playbooks/webservers.yml', content: '- hosts: webservers\n  roles:\n    - nginx\n' },
-      { path: 'playbooks/dbservers.yml', content: '- hosts: dbservers\n  roles:\n    - common\n' },
-      { path: 'playbooks/includes/common.yml', content: '- name: Common setup task\n  ansible.builtin.debug:\n    msg: "This is a common task"\n' },
-      { path: 'playbooks/includes/hardening.yml', content: '- name: Security hardening task\n  ansible.builtin.debug:\n    msg: "This is a hardening task"\n' },
+      { path: 'playbooks/webservers.yml', content: '- hosts: webservers\n  become: true\n  roles:\n    - common\n    - nginx\n' },
+      { path: 'playbooks/dbservers.yml', content: '- hosts: dbservers\n  become: true\n  roles:\n    - common\n' },
+      { path: 'playbooks/includes/common_tasks.yml', content: '- name: Common setup task\n  ansible.builtin.debug:\n    msg: "This is a common task included from a file."\n' },
+      { path: 'playbooks/includes/hardening.yml', content: '- name: Security hardening task\n  ansible.builtin.debug:\n    msg: "This is a security hardening task."\n' },
+      
       // Roles - common
-      { path: 'roles/common/defaults/main.yml', content: '# Defaults for common role\n' },
+      { path: 'roles/common/defaults/main.yml', content: '# Default variables for the common role.\n# These have the lowest precedence and can be easily overridden.\ncommon_package: "htop"\n' },
       { path: 'roles/common/files/.gitkeep', content: '' },
-      { path: 'roles/common/handlers/main.yml', content: '# Handlers for common role\n' },
-      { path: 'roles/common/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: A common role for server setup\n  license: license (GPL-2.0-or-later, MIT, etc)\n  min_ansible_version: "2.1"\n' },
-      { path: 'roles/common/tasks/main.yml', content: '- name: Common task from role\n  ansible.builtin.debug:\n    msg: "Hello from the common role!"\n' },
+      { path: 'roles/common/handlers/main.yml', content: '# Handlers for the common role.\n- name: restart common service\n  ansible.builtin.service:\n    name: some_common_service\n    state: restarted\n' },
+      { path: 'roles/common/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: A common role for server setup\n  license: MIT\n  min_ansible_version: "2.12"\n  platforms:\n    - name: Ubuntu\n      versions:\n        - focal\n        - jammy\n' },
+      { path: 'roles/common/tasks/main.yml', content: '- name: Common task from role\n  ansible.builtin.debug:\n    msg: "Hello from the common role!"\n\n- name: Install common package\n  ansible.builtin.package:\n    name: "{{ common_package }}"\n    state: present\n' },
       { path: 'roles/common/tasks/install.yml', content: '- name: Installation task from common role\n  ansible.builtin.debug:\n    msg: "Installing common packages"\n' },
       { path: 'roles/common/templates/.gitkeep', content: '' },
       { path: 'roles/common/tests/test.yml', content: '- hosts: localhost\n  remote_user: root\n  roles:\n    - common\n' },
-      { path: 'roles/common/vars/main.yml', content: '# Variables for common role\n' },
+      { path: 'roles/common/vars/main.yml', content: '# Variables for the common role.\n# These have high precedence within the role.\n' },
+      
       // Roles - nginx
-      { path: 'roles/nginx/defaults/main.yml', content: '# Defaults for nginx role\n' },
+      { path: 'roles/nginx/defaults/main.yml', content: '# Defaults for nginx role\nnginx_worker_processes: "auto"\n' },
       { path: 'roles/nginx/files/.gitkeep', content: '' },
       { path: 'roles/nginx/handlers/main.yml', content: '- name: restart nginx\n  ansible.builtin.service:\n    name: nginx\n    state: restarted\n' },
-      { path: 'roles/nginx/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: Installs and configures Nginx\n  license: license (GPL-2.0-or-later, MIT, etc)\n  min_ansible_version: "2.1"\n' },
-      { path: 'roles/nginx/tasks/main.yml', content: '- name: Install Nginx\n  ansible.builtin.package:\n    name: nginx\n    state: present\n' },
-      { path: 'roles/nginx/templates/.gitkeep', content: '' },
+      { path: 'roles/nginx/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: Installs and configures Nginx\n  license: MIT\n  min_ansible_version: "2.12"\n' },
+      { path: 'roles/nginx/tasks/main.yml', content: '- name: Install Nginx\n  ansible.builtin.package:\n    name: nginx\n    state: present\n  notify:\n    - restart nginx\n\n- name: Ensure Nginx is running and enabled\n  ansible.builtin.service:\n    name: nginx\n    state: started\n    enabled: yes\n' },
+      { path: 'roles/nginx/templates/nginx.conf.j2', content: 'worker_processes {{ nginx_worker_processes }};\n\nevents {\n    worker_connections 1024;\n}\n\nhttp {\n    server {\n        listen {{ http_port }};\n        server_name _;\n\n        location / {\n            root /usr/share/nginx/html;\n        }\n    }\n}\n' },
       { path: 'roles/nginx/tests/test.yml', content: '- hosts: localhost\n  remote_user: root\n  roles:\n    - nginx\n' },
       { path: 'roles/nginx/vars/main.yml', content: '# Variables for nginx role\n' },
+      
       // Other top-level directories
       { path: 'library/.gitkeep', content: '' },
       { path: 'filter_plugins/.gitkeep', content: '' },
-      { path: 'tests/test_site.yml', content: '# Tests for the main site playbook\n' },
-      { path: 'tests/mock_inventory.yml', content: '# Mock inventory for testing\n' },
+      { path: 'tests/test_site.yml', content: '# Tests for the main site playbook\n- hosts: all\n  tasks:\n    - name: Ping all hosts\n      ansible.builtin.ping:\n' },
+      { path: 'tests/mock_inventory', content: '[testgroup]\nlocalhost ansible_connection=local\n' },
+      
       // Collections
-      { path: 'collections/ansible_collections/my_namespace/my_collection/galaxy.yml', content: 'namespace: my_namespace\nname: my_collection\nversion: 1.0.0\n' },
+      { path: 'collections/ansible_collections/my_namespace/my_collection/galaxy.yml', content: 'namespace: my_namespace\nname: my_collection\nversion: 1.0.0\nauthors:\n  - Your Name <you@example.com>\n' },
       { path: 'collections/ansible_collections/my_namespace/my_collection/playbooks/.gitkeep', content: '' },
       { path: 'collections/ansible_collections/my_namespace/my_collection/plugins/modules/.gitkeep', content: '' },
       { path: 'collections/ansible_collections/my_namespace/my_collection/roles/.gitkeep', content: '' },
@@ -785,7 +792,7 @@ export function AnsibleArchitectLayout() {
     
     setProject(newProject);
     setActiveFile(null); // Clear active file
-    toast({ title: "Project Created", description: `Created "${newProject.name}" with ${newProject.files.length} files.` });
+    toast({ title: "Project Created", description: `Created "${newProject.name}" with ${new_project_files.length} files.` });
   };
 
 
@@ -1109,3 +1116,5 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
+
+    
