@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus } from 'lucide-react';
-import type { Project, ProjectFile, FileTreeNode } from "@/types/ansible";
+import type { Project, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -14,11 +14,9 @@ interface ProjectExplorerProps {
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
   onCreateDefaultProject: () => void;
-  onAcceptFileOrFolder: (path: string) => void;
-  onDeleteItem: (path: string, type: 'file' | 'directory') => void;
 }
 
-function buildFileTree(files: ProjectFile[]): FileTreeNode[] {
+function buildFileTree(files: Project['files']): FileTreeNode[] {
   const root: FileTreeNode = { name: 'root', path: '', type: 'directory', children: [] };
 
   files.forEach(file => {
@@ -101,9 +99,7 @@ const TreeNode: React.FC<{
   level: number;
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
-  onAccept: (path: string) => void;
-  onDelete: (path: string, type: 'file' | 'directory') => void;
-}> = ({ node, level, onFileSelect, activeFilePath, onAccept, onDelete }) => {
+}> = ({ node, level, onFileSelect, activeFilePath }) => {
   const [isExpanded, setIsExpanded] = React.useState(level < 2);
 
   const handleNodeClick = (e: React.MouseEvent) => {
@@ -112,16 +108,6 @@ const TreeNode: React.FC<{
     } else {
       setIsExpanded(!isExpanded);
     }
-  };
-  
-  const handleAcceptClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onAccept(node.path);
-  };
-  
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete(node.path, node.type);
   };
 
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
@@ -140,38 +126,11 @@ const TreeNode: React.FC<{
         <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
         <span className="whitespace-nowrap" title={node.name}>{node.name}</span>
       </div>
-      
-      {node.type === 'directory' && (
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0 group-hover/item:opacity-100 transition-opacity bg-muted/50 rounded-md">
-          {node.isDefault && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="w-6 h-6" onClick={handleAcceptClick}>
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="center">
-                <p>Accept Default</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={handleDeleteClick}>
-                <div className="w-2 h-2 rounded-full bg-destructive"></div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="center">
-              <p>Delete</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      )}
 
       {isExpanded && node.children && (
         <div>
           {node.children.map(child => (
-            <TreeNode key={child.path} node={child} level={level + 1} onFileSelect={onFileSelect} activeFilePath={activeFilePath} onAccept={onAccept} onDelete={onDelete} />
+            <TreeNode key={child.path} node={child} level={level + 1} onFileSelect={onFileSelect} activeFilePath={activeFilePath} />
           ))}
         </div>
       )}
@@ -180,7 +139,7 @@ const TreeNode: React.FC<{
 };
 
 
-export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFileOrFolder, onDeleteItem }: ProjectExplorerProps) {
+export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject }: ProjectExplorerProps) {
   const fileTree = React.useMemo(() => {
     if (!project?.files) return [];
     return buildFileTree(project.files);
@@ -214,8 +173,6 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
               level={0}
               onFileSelect={onFileSelect}
               activeFilePath={activeFilePath}
-              onAccept={onAcceptFileOrFolder}
-              onDelete={onDeleteItem}
             />
           ))}
         </ScrollArea>

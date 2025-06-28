@@ -890,8 +890,6 @@ export function AnsibleArchitectLayout() {
                 onFileSelect={handleFileSelect} 
                 activeFilePath={activeFile?.path || null} 
                 onCreateDefaultProject={handleCreateDefaultProject}
-                onAcceptFileOrFolder={handleAcceptFileOrFolder}
-                onDeleteItem={handleDeleteItem}
             />
           </TabsContent>
         </Tabs>
