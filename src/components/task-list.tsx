@@ -40,9 +40,6 @@ interface TaskListProps {
   definedRoles?: AnsibleRoleRef[];
   hoveredTaskId: string | null;
   onSetHoveredTaskId: (taskId: string | null) => void;
-  onDrop: (event: React.DragEvent) => void;
-  onDragOver: (event: React.DragEvent) => void;
-  onDragLeave: (event: React.DragEvent) => void;
   isDraggingOver: boolean;
 }
 
@@ -240,9 +237,6 @@ export function TaskList({
   definedRoles = [], 
   hoveredTaskId, 
   onSetHoveredTaskId,
-  onDrop,
-  onDragOver,
-  onDragLeave,
   isDraggingOver
 }: TaskListProps) {
   const [editingTask, setEditingTask] = React.useState<AnsibleTask | null>(null);
@@ -356,94 +350,86 @@ export function TaskList({
 
 
   return (
-    <div
-      className={cn(
-        "h-full transition-colors",
-        isDraggingOver ? 'bg-primary/5' : ''
-      )}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      aria-dropeffect="copy"
-    >
-      <ScrollArea className="h-full p-3">
-        {tasks.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
-            <Puzzle className="w-12 h-12 mx-auto mb-3 opacity-60" />
-            <p className="font-medium text-sm">Your playbook is empty.</p>
-            <p className="text-xs">Drag modules here to add tasks.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {tasks.map((task, index) => {
-              const IconComponent = moduleIcons[task.module] || moduleIcons.default;
-              return (
-                <Card
-                  key={task.id}
-                  className={cn(
-                    "shadow-sm hover:shadow-md transition-all",
-                    task.isPristine ? "bg-primary/5 border-destructive" : "bg-card",
-                    { 'ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
-                  )}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragEnter={() => handleDragEnter(index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                  onMouseEnter={() => onSetHoveredTaskId(task.id)}
-                  onMouseLeave={() => onSetHoveredTaskId(null)}
-                >
-                  <div className="flex items-center p-3">
-                    <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none flex-shrink-0" aria-label="Drag to reorder task">
-                      <GripVertical className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                    <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
-                    <div className="flex-grow min-w-0">
-                      <CardTitle className="text-sm font-medium text-card-foreground leading-tight whitespace-nowrap" title={task.name}>{task.name}</CardTitle>
-                      <CardDescription className="text-xs whitespace-nowrap" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
-                    </div>
-                    <div className={cn(
-                      "flex items-center space-x-0.5 transition-opacity flex-shrink-0 ml-2",
-                      task.id === hoveredTaskId ? "opacity-100" : "opacity-0"
-                    )}>
-                      {!task.rawYAML && (
-                        <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      </Button>
-                    </div>
+    <ScrollArea className={cn(
+      "h-full p-3 transition-colors",
+      isDraggingOver ? 'bg-primary/5' : ''
+    )}>
+      {tasks.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground flex-grow flex flex-col items-center justify-center h-full">
+          <Puzzle className="w-12 h-12 mx-auto mb-3 opacity-60" />
+          <p className="font-medium text-sm">Your playbook is empty.</p>
+          <p className="text-xs">Drag modules here to add tasks.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map((task, index) => {
+            const IconComponent = moduleIcons[task.module] || moduleIcons.default;
+            return (
+              <Card
+                key={task.id}
+                className={cn(
+                  "shadow-sm hover:shadow-md transition-all",
+                  task.isPristine ? "bg-primary/5 border-destructive" : "bg-card",
+                  { 'ring-1 ring-primary/50': task.id === hoveredTaskId && hoveredTaskId !== null }
+                )}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragEnter={() => handleDragEnter(index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                onMouseEnter={() => onSetHoveredTaskId(task.id)}
+                onMouseLeave={() => onSetHoveredTaskId(null)}
+              >
+                <div className="flex items-center p-3">
+                  <Button variant="ghost" size="icon" className="cursor-grab p-1 mr-2 h-auto touch-none flex-shrink-0" aria-label="Drag to reorder task">
+                    <GripVertical className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                  <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
+                  <div className="flex-grow min-w-0">
+                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight whitespace-nowrap" title={task.name}>{task.name}</CardTitle>
+                    <CardDescription className="text-xs whitespace-nowrap" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
                   </div>
+                  <div className={cn(
+                    "flex items-center space-x-0.5 transition-opacity flex-shrink-0 ml-2",
+                    task.id === hoveredTaskId ? "opacity-100" : "opacity-0"
+                  )}>
+                    {!task.rawYAML && (
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => openEditModal(task)} aria-label="Edit task">
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => onDeleteTask(task.id)} aria-label="Delete task">
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
 
-                  {task.rawYAML ? (
-                     <CardContent className="px-3 pb-2 pt-0">
-                        <pre className="font-code bg-muted/20 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
-                            {task.rawYAML}
-                        </pre>
-                     </CardContent>
-                  ) : (Object.keys(task.parameters || {}).length > 0 || task.comment) && (
-                    <CardContent className="px-3 pb-2 pt-0 text-xs">
-                      {task.comment && <p className="italic text-muted-foreground mb-1"># {task.comment}</p>}
-                      {Object.keys(task.parameters || {}).length > 0 && (
-                        <details className="max-h-32 overflow-y-auto">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-xs">Parameters</summary>
-                          <ul className="text-xs space-y-0.5 mt-1 pl-2 border-l ml-1">
-                            {Object.entries(task.parameters || {}).map(([key, value]) => (
-                              <li key={key} className="truncate"><span className="font-medium">{key}:</span> {String(value)}</li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </ScrollArea>
+                {task.rawYAML ? (
+                   <CardContent className="px-3 pb-2 pt-0">
+                      <pre className="font-code bg-muted/20 p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
+                          {task.rawYAML}
+                      </pre>
+                   </CardContent>
+                ) : (Object.keys(task.parameters || {}).length > 0 || task.comment) && (
+                  <CardContent className="px-3 pb-2 pt-0 text-xs">
+                    {task.comment && <p className="italic text-muted-foreground mb-1"># {task.comment}</p>}
+                    {Object.keys(task.parameters || {}).length > 0 && (
+                      <details className="max-h-32 overflow-y-auto">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-xs">Parameters</summary>
+                        <ul className="text-xs space-y-0.5 mt-1 pl-2 border-l ml-1">
+                          {Object.entries(task.parameters || {}).map(([key, value]) => (
+                            <li key={key} className="truncate"><span className="font-medium">{key}:</span> {String(value)}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
       {editingTask && (
         <Dialog open={!!editingTask} onOpenChange={(isOpen) => !isOpen && setEditingTask(null)}>
           <DialogContent className="sm:max-w-[600px]">
@@ -545,6 +531,6 @@ export function TaskList({
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </ScrollArea>
   );
 }

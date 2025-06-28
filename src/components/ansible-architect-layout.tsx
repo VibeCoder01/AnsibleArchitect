@@ -870,7 +870,7 @@ export function AnsibleArchitectLayout() {
       {/* Left Panel */}
       <div
         style={{ flex: `0 0 ${col1Width}px` }}
-        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
+        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
       >
         <div className="p-3 flex items-center border-b flex-shrink-0">
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
@@ -949,23 +949,23 @@ export function AnsibleArchitectLayout() {
                       className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
                   >
                       <div
-                      style={{ flex: `0 0 ${col2Width}px` }}
-                      className="min-w-0 bg-card shadow-sm flex flex-col border-r"
+                        style={{ flex: `0 0 ${col2Width}px` }}
+                        className="min-w-0 bg-card shadow-sm flex flex-col border-r"
+                        onDrop={handleDropOnTaskList}
+                        onDragOver={handleDragOverTaskList}
+                        onDragLeave={handleDragLeaveTaskList}
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
                         <div className="flex-grow min-h-0">
                             <TaskList
-                            tasks={p.tasks}
-                            onUpdateTask={updateTaskInActivePlaybook}
-                            onDeleteTask={deleteTaskInActivePlaybook}
-                            onMoveTask={moveTaskInActivePlaybook}
-                            definedRoles={definedRoles}
-                            hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                            onSetHoveredTaskId={setHoveredTaskId}
-                            onDrop={handleDropOnTaskList}
-                            onDragOver={handleDragOverTaskList}
-                            onDragLeave={handleDragLeaveTaskList}
-                            isDraggingOver={isDraggingOverTaskList}
+                              tasks={p.tasks}
+                              onUpdateTask={updateTaskInActivePlaybook}
+                              onDeleteTask={deleteTaskInActivePlaybook}
+                              onMoveTask={moveTaskInActivePlaybook}
+                              definedRoles={definedRoles}
+                              hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                              onSetHoveredTaskId={setHoveredTaskId}
+                              isDraggingOver={isDraggingOverTaskList}
                             />
                         </div>
                       </div>
