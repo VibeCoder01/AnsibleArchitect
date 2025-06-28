@@ -9,9 +9,9 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, ListTree, ListCollapse, List as ListIcon } from "lucide-react";
 import * as yaml from "js-yaml";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState, Project, ProjectFile } from "@/types/ansible";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState, Project, ProjectFile, FileTreeNode } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -884,7 +884,7 @@ export function AnsibleArchitectLayout() {
           <TabsContent value="modules" className="flex-1 min-h-0">
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
-          <TabsContent value="project" className="flex-1 min-h-0">
+          <TabsContent value="project" className="flex-1 flex flex-col min-h-0">
             <ProjectExplorer 
                 project={project} 
                 onFileSelect={handleFileSelect} 
@@ -953,9 +953,7 @@ export function AnsibleArchitectLayout() {
                       className="min-w-0 bg-card shadow-sm flex flex-col border-r"
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <div 
-                          className="flex-grow min-h-0"
-                        >
+                        <div className="flex-grow min-h-0">
                             <TaskList
                             tasks={p.tasks}
                             onUpdateTask={updateTaskInActivePlaybook}
@@ -967,7 +965,7 @@ export function AnsibleArchitectLayout() {
                             onDrop={handleDropOnTaskList}
                             onDragOver={handleDragOverTaskList}
                             onDragLeave={handleDragLeaveTaskList}
-                            isDraggingOver={isDraggingOver}
+                            isDraggingOver={isDraggingOverTaskList}
                             />
                         </div>
                       </div>
@@ -1043,7 +1041,7 @@ export function AnsibleArchitectLayout() {
       >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <ScrollArea className="flex-1 min-h-0">
-            <div className="p-3 space-y-2 whitespace-nowrap">
+            <div className="p-3 space-y-2">
               <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
                 <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
               </Button>
