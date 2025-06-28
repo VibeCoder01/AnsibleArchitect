@@ -7,17 +7,16 @@ import type { Project, ProjectFile, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+interface ProjectExplorerProps {
+  project: Project | null;
+  onFileSelect: (path: string) => void;
+  activeFilePath: string | null;
+  onCreateDefaultProject: () => void;
+  onAcceptFileOrFolder: (path: string) => void;
+  onDeleteItem: (path: string, type: 'file' | 'directory') => void;
+}
 
 function buildFileTree(files: ProjectFile[]): FileTreeNode[] {
   const root: FileTreeNode = { name: 'root', path: '', type: 'directory', children: [] };
@@ -44,6 +43,10 @@ function buildFileTree(files: ProjectFile[]): FileTreeNode[] {
       } else if (childNode.type === 'file' && !isLastPart) {
         childNode.type = 'directory';
         childNode.children = childNode.children || [];
+      }
+      
+      if (isLastPart && childNode.type === 'file') {
+        childNode.isDefault = file.isDefault;
       }
       
       if (childNode.type === 'directory') {
@@ -127,30 +130,33 @@ const TreeNode: React.FC<{
         <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
         <span className="truncate" title={node.name}>{node.name}</span>
       </div>
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0 group-hover/item:opacity-100 transition-opacity bg-muted/50 rounded-md">
-        {node.isDefault && (
+      
+      {node.type === 'directory' && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0 group-hover/item:opacity-100 transition-opacity bg-muted/50 rounded-md">
+          {node.isDefault && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onAccept(node.path)}>
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="center">
+                <p>Accept Default</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onAccept(node.path)}>
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onDelete(node.path, node.type)}>
+                <div className="w-2 h-2 rounded-full bg-destructive"></div>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" align="center">
-              <p>Accept Default</p>
+              <p>Delete</p>
             </TooltipContent>
           </Tooltip>
-        )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onDelete(node.path, node.type)}>
-              <div className="w-2 h-2 rounded-full bg-destructive"></div>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="center">
-            <p>Delete</p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
+        </div>
+      )}
 
       {isExpanded && node.children && (
         <div>
@@ -164,31 +170,11 @@ const TreeNode: React.FC<{
 };
 
 
-export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFileOrFolder, onDeleteFileOrFolder }: ProjectExplorerProps) {
+export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFileOrFolder, onDeleteItem }: ProjectExplorerProps) {
   const fileTree = React.useMemo(() => {
     if (!project?.files) return [];
     return buildFileTree(project.files);
   }, [project]);
-
-  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = React.useState(false);
-  const [pathToConfirmDelete, setPathToConfirmDelete] = React.useState<string | null>(null);
-
-  const handleDeleteClick = (path: string, type: 'file' | 'directory') => {
-    if (type === 'directory') {
-      setPathToConfirmDelete(path);
-      setIsConfirmDeleteDialogOpen(true);
-    } else {
-      onDeleteFileOrFolder(path);
-    }
-  };
-
-  const confirmDelete = () => {
-    if (pathToConfirmDelete) {
-      onDeleteFileOrFolder(pathToConfirmDelete);
-    }
-    setIsConfirmDeleteDialogOpen(false);
-    setPathToConfirmDelete(null);
-  };
 
   if (!project) {
     return (
@@ -219,29 +205,11 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
               onFileSelect={onFileSelect}
               activeFilePath={activeFilePath}
               onAccept={onAcceptFileOrFolder}
-              onDelete={handleDeleteClick}
+              onDelete={onDeleteItem}
             />
           ))}
         </ScrollArea>
       </div>
-      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the folder and all its contents: <br />
-              <strong className="font-mono break-all">{pathToConfirmDelete}</strong>
-              <br />This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPathToConfirmDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </TooltipProvider>
   );
 }

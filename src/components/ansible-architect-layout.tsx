@@ -9,7 +9,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState, Project, ProjectFile } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +21,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from 'uuid';
 import JSZip from "jszip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
   ssr: false,
@@ -149,6 +159,7 @@ export function AnsibleArchitectLayout() {
   const [activeFile, setActiveFile] = React.useState<ProjectFile | null>(null);
   const [editorContent, setEditorContent] = React.useState<string>("");
   const [mainView, setMainView] = React.useState<'designer' | 'editor'>('designer');
+  const [itemToConfirmDelete, setItemToConfirmDelete] = React.useState<{ path: string; type: 'file' | 'directory' } | null>(null);
 
 
   React.useEffect(() => {
@@ -665,6 +676,17 @@ export function AnsibleArchitectLayout() {
     setProject({ ...project, files: updatedFiles });
     toast({ title: "Accepted", description: `Default status removed for ${path}` });
   };
+
+  const handleDeleteItem = (path: string, type: 'file' | 'directory') => {
+    setItemToConfirmDelete({ path, type });
+  };
+
+  const confirmDelete = () => {
+    if (itemToConfirmDelete) {
+        handleDeleteFileOrFolder(itemToConfirmDelete.path);
+    }
+    setItemToConfirmDelete(null);
+  };
   
   const handleDeleteFileOrFolder = (path: string) => {
     if (!project) return;
@@ -869,7 +891,7 @@ export function AnsibleArchitectLayout() {
                 activeFilePath={activeFile?.path || null} 
                 onCreateDefaultProject={handleCreateDefaultProject}
                 onAcceptFileOrFolder={handleAcceptFileOrFolder}
-                onDeleteFileOrFolder={handleDeleteFileOrFolder}
+                onDeleteItem={handleDeleteItem}
             />
           </TabsContent>
         </Tabs>
@@ -978,7 +1000,19 @@ export function AnsibleArchitectLayout() {
                      <h2 className="text-base font-semibold font-code" title={activeFile.path}>{activeFile.path}</h2>
                      {activeFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
                   </div>
-                  <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
+                  <div className="flex items-center gap-2">
+                    {activeFile.isDefault && (
+                      <Button size="sm" variant="outline" onClick={() => handleAcceptFileOrFolder(activeFile.path)}>
+                        <Check className="w-4 h-4 mr-2" />
+                        Accept File
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeFile.path, 'file')}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete File
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex-1 min-h-0">
                   <Textarea
@@ -1144,6 +1178,25 @@ export function AnsibleArchitectLayout() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <AlertDialog open={!!itemToConfirmDelete} onOpenChange={(isOpen) => !isOpen && setItemToConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the {itemToConfirmDelete?.type} and all its contents: <br />
+              <strong className="font-mono break-all">{itemToConfirmDelete?.path}</strong>
+              <br />This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setItemToConfirmDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isClientReady && isInventoryVisualizerOpen && (
         <InventoryStructureVisualizer
