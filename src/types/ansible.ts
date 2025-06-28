@@ -40,12 +40,12 @@ export interface AnsibleRoleRef {
   name: string;
 }
 
-// Represents the state of a single playbook file/tab in the UI
-export interface PlaybookState {
-  id: string; // Unique ID for this playbook instance
+// Represents the state of a single file open in the designer
+export interface DesignerFileState {
+  id: string; // Unique ID for this file instance (usually the file path)
   name: string; // User-defined name, e.g., "webservers.yml"
-  tasks: AnsibleTask[];
-  // Future: unsavedChanges?: boolean; filePath?: string;
+  tasks: AnsibleTask[]; // The blocks/tasks parsed from the file
+  // Future: unsavedChanges?: boolean;
 }
 
 // Types for Project Import/Export

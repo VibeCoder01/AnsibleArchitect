@@ -9,9 +9,10 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, ListTree, ListCollapse, List as ListIcon } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save } from "lucide-react";
 import * as yaml from "js-yaml";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState, Project, ProjectFile, FileTreeNode } from "@/types/ansible";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile } from "@/types/ansible";
+import { moduleGroups } from "@/config/ansible-modules";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -46,80 +47,120 @@ const InventoryStructureVisualizer = dynamic(() => import('@/components/inventor
 
 
 const MIN_COLUMN_WIDTH = 150; 
-const LOCAL_STORAGE_PLAYBOOKS_KEY = "ansibleArchitectPlaybooks";
-const LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY = "ansibleArchitectActivePlaybookId";
+const LOCAL_STORAGE_DESIGNER_FILES_KEY = "ansibleArchitectDesignerFiles";
+const LOCAL_STORAGE_ACTIVE_DESIGNER_FILE_ID_KEY = "ansibleArchitectActiveDesignerFileId";
+const moduleDefinitions = moduleGroups.flatMap(g => g.modules);
 
-function generatePlaybookYamlSegments(tasks: AnsibleTask[], playbookName: string): YamlSegment[] {
-  const segments: YamlSegment[] = [];
-  const playbookStructure: AnsiblePlaybookYAML = [
-    {
-      id: "play1", 
-      name: playbookName,
-      hosts: "all",
-      become: true,
-      tasks: tasks,
-    },
-  ];
 
-  playbookStructure.forEach(play => {
-    let playHeaderContent = `- name: ${play.name}\n`;
-    playHeaderContent += `  hosts: ${play.hosts}\n`;
-    if (play.become !== undefined) {
-      playHeaderContent += `  become: ${play.become ? 'yes' : 'no'}\n`;
+function parseYamlToTasks(yamlContent: string): AnsibleTask[] {
+  try {
+    const data = yaml.load(yamlContent);
+    // If YAML is null, empty, or not an array, treat it as a single (potentially empty) raw block
+    if (data === null || typeof data === 'undefined' || !Array.isArray(data)) {
+      return [{
+        id: uuidv4(),
+        name: "Custom YAML Block",
+        module: 'custom.block',
+        parameters: {},
+        rawYAML: yamlContent || '',
+        isPristine: false,
+      }];
     }
-    segments.push({ content: playHeaderContent, isTaskBlock: false });
 
-    if (play.tasks.length > 0) {
-      segments.push({ content: `  tasks:\n`, isTaskBlock: false });
-      play.tasks.forEach(task => {
-        let taskBlockContent = "";
-        if (task.rawYAML) {
-          const lines = task.rawYAML.trim().split('\n');
-          lines.forEach((line, index) => {
-            const trimmedLine = line.trim();
-            if (index === 0 && !trimmedLine.startsWith('-')) {
-               taskBlockContent += `    - ${trimmedLine}\n`;
-            } else if (index === 0 && trimmedLine.startsWith('-')) {
-               taskBlockContent += `    ${trimmedLine}\n`;
-            } else {
-               taskBlockContent += `      ${trimmedLine}\n`;
-            }
-          });
-        } else {
-          taskBlockContent += `    - name: "${task.name.replace(/"/g, '\\"')}"\n`;
-          if (task.comment) {
-            taskBlockContent += `      # ${task.comment}\n`;
-          }
-          taskBlockContent += `      ${task.module}:\n`;
-          Object.entries(task.parameters || {}).forEach(([key, value]) => {
-            let formattedValue = value;
-            if (typeof value === 'string') {
-              if (value.includes('\n')) {
-                formattedValue = `|-\n          ${value.split('\n').join('\n          ')}`;
-              } else if (value.includes(':') || value.includes('#') || value.includes('"') || value.includes("'") || ['yes', 'no', 'true', 'false', 'on', 'off', 'null'].includes(value.toLowerCase()) || /^\d/.test(value) || value.trim() === "") {
-                 formattedValue = `"${value.replace(/"/g, '\\"')}"`;
-              }
-            } else if (typeof value === 'boolean') {
-              formattedValue = value ? 'yes' : 'no';
-            } else if (value === null || value === undefined) {
-              formattedValue = 'null';
-            }
-            taskBlockContent += `        ${key}: ${formattedValue}\n`;
-          });
+    return data.map((item: any) => {
+      if (typeof item !== 'object' || item === null) {
+        return {
+          id: uuidv4(),
+          name: `Custom Value`,
+          module: 'custom.block',
+          parameters: {},
+          rawYAML: yaml.dump(item),
+          isPristine: false,
+        };
+      }
+
+      let identifiedModule: AnsibleModuleDefinition | undefined;
+      let moduleKey = '';
+      
+      const itemKeys = Object.keys(item);
+      // Find a key that matches a known module definition
+      for (const key of itemKeys) {
+        const foundModule = moduleDefinitions.find(m => m.module === key);
+        if (foundModule) {
+          identifiedModule = foundModule;
+          moduleKey = key;
+          break;
         }
-        taskBlockContent += "\n";
-        segments.push({ id: task.id, content: taskBlockContent, isTaskBlock: true });
-      });
+      }
+
+      if (identifiedModule) {
+        // We found a known module, create a structured task
+        return {
+          id: uuidv4(),
+          name: item.name || identifiedModule.name,
+          module: identifiedModule.module,
+          parameters: typeof item[moduleKey] === 'object' ? item[moduleKey] : {},
+          isPristine: false,
+        };
+      } else {
+        // It's a custom block, store as raw YAML
+        return {
+          id: uuidv4(),
+          name: item.name || `Custom Block`,
+          module: 'custom.block',
+          parameters: {},
+          rawYAML: yaml.dump(item, { indent: 2 }),
+          isPristine: false,
+        };
+      }
+    });
+
+  } catch (error) {
+    console.error("Error parsing YAML file for designer:", error);
+    toast({ title: "YAML Parsing Error", description: "Could not parse file. Opening as a single raw block.", variant: "destructive" });
+    // If parsing fails, treat the whole file as a single raw block
+    return [{
+      id: uuidv4(),
+      name: "Invalid YAML (edit as raw text)",
+      module: 'custom.block.error',
+      parameters: {},
+      rawYAML: yamlContent,
+      isPristine: false,
+    }];
+  }
+}
+
+function generateYamlSegments(tasks: AnsibleTask[]): YamlSegment[] {
+  const segments: YamlSegment[] = [];
+
+  tasks.forEach(task => {
+    let taskBlockContent = "";
+    if (task.rawYAML) {
+      taskBlockContent = task.rawYAML;
     } else {
-      segments.push({ content: "  tasks: []\n\n", isTaskBlock: false });
+      // Create a temporary object to dump to YAML
+      const taskObject: any = { name: task.name };
+       if (task.comment) {
+        // js-yaml doesn't support comments on dump, so we can't add it here reliably
+        // It must be handled during rendering if needed, or by using rawYAML
+      }
+      taskObject[task.module] = task.parameters || {};
+      taskBlockContent = yaml.dump([taskObject], { indent: 2 }).trim();
     }
+    
+    // Ensure consistent newlines
+    taskBlockContent = taskBlockContent.trim() + '\n';
+    
+    segments.push({ id: task.id, content: taskBlockContent, isTaskBlock: true });
   });
+
   return segments;
 }
 
-const createNewPlaybook = (name?: string): PlaybookState => ({
-  id: uuidv4(),
-  name: name || `Untitled Playbook ${Date.now() % 10000}`,
+
+const createNewDesignerFile = (name?: string): DesignerFileState => ({
+  id: uuidv4(), // Temporary ID until saved to project
+  name: name || `Untitled File ${Date.now() % 10000}.yml`,
   tasks: [],
 });
 
@@ -130,8 +171,8 @@ interface StoppableEvent {
 
 
 export function AnsibleArchitectLayout() {
-  const [playbooks, setPlaybooks] = React.useState<PlaybookState[]>([]);
-  const [activePlaybookId, setActivePlaybookId] = React.useState<string | null>(null);
+  const [designerFiles, setDesignerFiles] = React.useState<DesignerFileState[]>([]);
+  const [activeDesignerFileId, setActiveDesignerFileId] = React.useState<string | null>(null);
   const [isClientReady, setIsClientReady] = React.useState(false);
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
@@ -153,8 +194,8 @@ export function AnsibleArchitectLayout() {
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | null>(null);
 
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
-  const [renamingPlaybookId, setRenamingPlaybookId] = React.useState<string | null>(null);
-  const [tempPlaybookName, setTempPlaybookName] = React.useState("");
+  const [renamingFileId, setRenamingFileId] = React.useState<string | null>(null);
+  const [tempFileName, setTempFileName] = React.useState("");
   
   const inventoryFileRef = React.useRef<HTMLInputElement>(null);
   const playbookFileRef = React.useRef<HTMLInputElement>(null);
@@ -164,90 +205,90 @@ export function AnsibleArchitectLayout() {
 
   // Project state
   const [project, setProject] = React.useState<Project | null>(null);
-  const [activeFile, setActiveFile] = React.useState<ProjectFile | null>(null);
+  const [activeEditorFile, setActiveEditorFile] = React.useState<ProjectFile | null>(null);
   const [editorContent, setEditorContent] = React.useState<string>("");
   const [mainView, setMainView] = React.useState<'designer' | 'editor'>('designer');
   const [itemToConfirmDelete, setItemToConfirmDelete] = React.useState<{ path: string; type: 'file' | 'directory' } | null>(null);
 
 
   React.useEffect(() => {
-    const storedPlaybooks = localStorage.getItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
-    const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
-    let initialPlaybooks: PlaybookState[] = [];
+    const storedFiles = localStorage.getItem(LOCAL_STORAGE_DESIGNER_FILES_KEY);
+    const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_DESIGNER_FILE_ID_KEY);
+    let initialFiles: DesignerFileState[] = [];
     let initialActiveId: string | null = null;
 
-    if (storedPlaybooks) {
+    if (storedFiles) {
       try {
-        const parsedPlaybooks = JSON.parse(storedPlaybooks) as PlaybookState[];
-        if (Array.isArray(parsedPlaybooks) && parsedPlaybooks.length > 0) {
-          initialPlaybooks = parsedPlaybooks;
-          if (storedActiveId && parsedPlaybooks.some((p: PlaybookState) => p.id === storedActiveId)) {
+        const parsedFiles = JSON.parse(storedFiles) as DesignerFileState[];
+        if (Array.isArray(parsedFiles) && parsedFiles.length > 0) {
+          initialFiles = parsedFiles;
+          if (storedActiveId && parsedFiles.some((p: DesignerFileState) => p.id === storedActiveId)) {
             initialActiveId = storedActiveId;
           } else {
-            initialActiveId = parsedPlaybooks[0].id;
+            initialActiveId = parsedFiles[0].id;
           }
         }
       } catch (error) {
-        console.error("Error parsing playbooks from localStorage:", error);
+        console.error("Error parsing designer files from localStorage:", error);
       }
     }
 
-    if (initialPlaybooks.length === 0) {
-      const defaultPlaybook = createNewPlaybook("Default Playbook");
-      initialPlaybooks = [defaultPlaybook];
-      initialActiveId = defaultPlaybook.id;
+    if (initialFiles.length === 0) {
+      const defaultFile = createNewDesignerFile("Default Playbook.yml");
+      initialFiles = [defaultFile];
+      initialActiveId = defaultFile.id;
     }
 
-    setPlaybooks(initialPlaybooks);
-    setActivePlaybookId(initialActiveId);
+    setDesignerFiles(initialFiles);
+    setActiveDesignerFileId(initialActiveId);
     setIsClientReady(true); 
   }, []);
 
   React.useEffect(() => {
     if (!isClientReady) return;
 
-    if (playbooks.length > 0) {
-      localStorage.setItem(LOCAL_STORAGE_PLAYBOOKS_KEY, JSON.stringify(playbooks));
+    if (designerFiles.length > 0) {
+      localStorage.setItem(LOCAL_STORAGE_DESIGNER_FILES_KEY, JSON.stringify(designerFiles));
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_PLAYBOOKS_KEY);
+      localStorage.removeItem(LOCAL_STORAGE_DESIGNER_FILES_KEY);
     }
-    if (activePlaybookId) {
-      localStorage.setItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY, activePlaybookId);
+    if (activeDesignerFileId) {
+      localStorage.setItem(LOCAL_STORAGE_ACTIVE_DESIGNER_FILE_ID_KEY, activeDesignerFileId);
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_ACTIVE_PLAYBOOK_ID_KEY);
+      localStorage.removeItem(LOCAL_STORAGE_ACTIVE_DESIGNER_FILE_ID_KEY);
     }
-  }, [playbooks, activePlaybookId, isClientReady]);
+  }, [designerFiles, activeDesignerFileId, isClientReady]);
 
   React.useEffect(() => {
-    if (activeFile) {
-      setEditorContent(activeFile.content);
+    if (activeEditorFile) {
+      setEditorContent(activeEditorFile.content);
     } else {
       setEditorContent("");
     }
-  }, [activeFile]);
+  }, [activeEditorFile]);
+  
+  const getActiveDesignerFile = React.useCallback(() => {
+    return designerFiles.find(p => p.id === activeDesignerFileId);
+  }, [designerFiles, activeDesignerFileId]);
 
-  const getActivePlaybook = React.useCallback(() => {
-    return playbooks.find(p => p.id === activePlaybookId);
-  }, [playbooks, activePlaybookId]);
-
-  const updateActivePlaybookState = React.useCallback((updatedFields: Partial<PlaybookState>) => {
-    setPlaybooks(prev =>
-      prev.map(p => (p.id === activePlaybookId ? { ...p, ...updatedFields } : p))
+  const updateActiveDesignerFileState = React.useCallback((updatedFields: Partial<DesignerFileState>) => {
+    setDesignerFiles(prev =>
+      prev.map(p => (p.id === activeDesignerFileId ? { ...p, ...updatedFields } : p))
     );
-  }, [activePlaybookId]);
+  }, [activeDesignerFileId]);
 
 
-  const activePlaybook = getActivePlaybook();
+  const activeDesignerFile = getActiveDesignerFile();
   const yamlSegments = React.useMemo(() => {
-    if (!activePlaybook) return [];
-    return generatePlaybookYamlSegments(activePlaybook.tasks, activePlaybook.name);
-  }, [activePlaybook]);
+    if (!activeDesignerFile) return [];
+    return generateYamlSegments(activeDesignerFile.tasks);
+  }, [activeDesignerFile]);
 
   const fullYamlContent = React.useMemo(() => yamlSegments.map(segment => segment.content).join(''), [yamlSegments]);
 
-  const addTaskToActivePlaybook = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
-    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; 
+  const addTaskToActiveFile = (taskDetails: AnsibleModuleDefinition | AnsibleTask) => {
+    const currentActiveFile = designerFiles.find(p => p.id === activeDesignerFileId);
+    if (!currentActiveFile) return; 
     let newTask: AnsibleTask;
     if ('module' in taskDetails && 'defaultParameters' in taskDetails) {
       const moduleDef = taskDetails as AnsibleModuleDefinition;
@@ -265,37 +306,37 @@ export function AnsibleArchitectLayout() {
           newTask.isPristine = false; 
       }
     }
-    updateActivePlaybookState({ tasks: [...currentActivePlaybook.tasks, newTask] });
+    updateActiveDesignerFileState({ tasks: [...currentActiveFile.tasks, newTask] });
   };
 
   const handleAddTaskFromPalette = (moduleDef: AnsibleModuleDefinition) => {
-    addTaskToActivePlaybook(moduleDef);
+    addTaskToActiveFile(moduleDef);
     setMainView('designer');
   };
 
-  const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
-    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return;
-    updateActivePlaybookState({
-      tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
+  const updateTaskInActiveFile = (updatedTask: AnsibleTask) => {
+    const currentActiveFile = designerFiles.find(p => p.id === activeDesignerFileId);
+    if (!currentActiveFile) return;
+    updateActiveDesignerFileState({
+      tasks: currentActiveFile.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
   };
 
-  const deleteTaskInActivePlaybook = (taskId: string) => {
-    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; 
-    updateActivePlaybookState({
-      tasks: currentActivePlaybook.tasks.filter(task => task.id !== taskId),
+  const deleteTaskInActiveFile = (taskId: string) => {
+    const currentActiveFile = designerFiles.find(p => p.id === activeDesignerFileId);
+    if (!currentActiveFile) return; 
+    updateActiveDesignerFileState({
+      tasks: currentActiveFile.tasks.filter(task => task.id !== taskId),
     });
   };
 
-  const moveTaskInActivePlaybook = (dragIndex: number, hoverIndex: number) => {
-    const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
-    if (!currentActivePlaybook) return; 
-    const newTasks = [...currentActivePlaybook.tasks];
+  const moveTaskInActiveFile = (dragIndex: number, hoverIndex: number) => {
+    const currentActiveFile = designerFiles.find(p => p.id === activeDesignerFileId);
+    if (!currentActiveFile) return; 
+    const newTasks = [...currentActiveFile.tasks];
     const [draggedItem] = newTasks.splice(dragIndex, 1);
     newTasks.splice(hoverIndex, 0, draggedItem);
-    updateActivePlaybookState({ tasks: newTasks });
+    updateActiveDesignerFileState({ tasks: newTasks });
   };
 
   const handleExportYaml = () => {
@@ -306,13 +347,13 @@ export function AnsibleArchitectLayout() {
     const blob = new Blob([fullYamlContent], { type: "text/yaml;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    const currentActivePlaybook = getActivePlaybook();
-    link.download = `${currentActivePlaybook?.name.replace(/\s+/g, '_') || 'playbook'}.yml`;
+    const currentActiveFile = getActiveDesignerFile();
+    link.download = `${currentActiveFile?.name.replace(/\s+/g, '_') || 'file'}.yml`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-    toast({ title: "Exported", description: "Playbook YAML downloaded." });
+    toast({ title: "Exported", description: "File YAML downloaded." });
   };
 
   const handleCopyYaml = async () => {
@@ -348,82 +389,31 @@ export function AnsibleArchitectLayout() {
       try {
         const playbook = yaml.load(content);
         let validationMessage = `YAML syntax for "${file.name}" is valid.`;
+        // Basic Ansible-specific validation can remain as a progressive enhancement
         let hasSemanticIssues = false;
         const semanticErrors: string[] = [];
         const semanticWarnings: string[] = [];
-
-        if (!Array.isArray(playbook)) {
-          semanticErrors.push("Playbook must be a list of plays (e.g., starts with '-').");
-          hasSemanticIssues = true;
-        } else {
+        if (Array.isArray(playbook)) {
           (playbook as any[]).forEach((play, playIndex) => {
-            if (typeof play !== 'object' || play === null) {
-              semanticErrors.push(`Play ${playIndex + 1} is not a valid object.`);
-              hasSemanticIssues = true;
-              return; 
-            }
-
-            if (!play.hosts || typeof play.hosts !== 'string') {
-              semanticErrors.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") is missing a 'hosts' key or its value is not a string.`);
-              hasSemanticIssues = true;
-            }
-            if (play.name && typeof play.name !== 'string') {
-              semanticWarnings.push(`Play ${playIndex + 1} has a 'name' key, but its value is not a string.`);
-            }
-            if (play.become !== undefined && typeof play.become !== 'boolean') {
-              semanticWarnings.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") has a 'become' key, but its value is not a boolean (true/false).`);
-            }
-
-            if (play.tasks) {
-              if (!Array.isArray(play.tasks)) {
-                semanticErrors.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") has a 'tasks' key, but its value is not a list.`);
-                hasSemanticIssues = true;
-              } else {
-                (play.tasks as any[]).forEach((task, taskIndex) => {
-                  if (typeof task !== 'object' || task === null) {
-                    semanticErrors.push(`Task ${taskIndex + 1} in Play ${playIndex + 1} is not a valid object.`);
-                    hasSemanticIssues = true;
-                    return; 
-                  }
-                  
-                  const taskKeys = Object.keys(task);
-                  const knownTaskKeywords = ['name', 'when', 'loop', 'register', 'tags', 'become', 'vars', 'include_role', 'import_role', 'block', 'rescue', 'always', 'delegate_to', 'run_once', 'ignore_errors', 'changed_when', 'failed_when', 'notify', 'listen', 'environment', 'args', 'no_log', 'loop_control', 'until', 'retries', 'delay', 'async', 'poll', 'check_mode', 'diff', 'debugger', 'collections', 'module_defaults'];
-                  const moduleKeys = taskKeys.filter(k => !knownTaskKeywords.includes(k));
-
-                  if (moduleKeys.length === 0 && !task.block && !task.include_role && !task.import_role) { 
-                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} does not seem to call a module, include a role, or define a block.`);
-                  } else if (moduleKeys.length === 1) {
-                    const moduleKey = moduleKeys[0];
-                    const moduleParams = task[moduleKey];
-                    if (typeof moduleParams !== 'object' && typeof moduleParams !== 'string' && moduleParams !== null) {
-                       semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} module '${moduleKey}' has parameters that are not an object or string.`);
-                    }
-                  } else if (moduleKeys.length > 1) {
-                     semanticWarnings.push(`Task ${taskIndex + 1} (name: "${task.name || 'Unnamed'}") in Play ${playIndex + 1} appears to call multiple modules: ${moduleKeys.join(', ')}.`);
-                  }
-                });
+            if (typeof play === 'object' && play !== null && (play.hosts || play.tasks)) {
+               if (!play.hosts || typeof play.hosts !== 'string') {
+                semanticWarnings.push(`Play ${playIndex + 1} (name: "${play.name || 'Unnamed'}") looks like an Ansible play but is missing a 'hosts' key.`);
               }
             }
           });
         }
         
-        if (hasSemanticIssues) {
-           toast({
-            title: "Playbook Validation Failed (Semantic)",
-            description: `Error in "${file.name}": ${semanticErrors.join("; ")}. ${semanticWarnings.join("; ")}`,
-            variant: "destructive",
-          });
-        } else if (semanticWarnings.length > 0) {
+        if (semanticWarnings.length > 0) {
           toast({
-            title: "Playbook Validation Successful (with warnings)",
-            description: `${validationMessage} Warnings: ${semanticWarnings.join("; ")}`,
+            title: "YAML Validation Successful (with warnings)",
+            description: `${validationMessage} Ansible-specific warnings: ${semanticWarnings.join("; ")}`,
             variant: "default",
             className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
           });
         } else {
           toast({
-            title: "Playbook Validation Successful",
-            description: `${validationMessage} Basic playbook structure appears valid.`,
+            title: "YAML Validation Successful",
+            description: `${validationMessage} The file is valid YAML.`,
             className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
           });
         }
@@ -436,11 +426,11 @@ export function AnsibleArchitectLayout() {
           errorMessage = error.message;
         }
         toast({
-          title: "Playbook Validation Failed (Syntax)",
-          description: `Error in "${file.name}" (YAML): ${errorMessage}. See console for details.`,
+          title: "YAML Validation Failed",
+          description: `Error in "${file.name}": ${errorMessage}.`,
           variant: "destructive",
         });
-        console.error(`Playbook YAML Validation Error (${file.name}):`, error);
+        console.error(`YAML Validation Error (${file.name}):`, error);
       }
     };
     reader.onerror = () => {
@@ -456,15 +446,15 @@ export function AnsibleArchitectLayout() {
   const handleDropOnTaskList = (event: React.DragEvent) => {
     event.preventDefault();
     setIsDraggingOverTaskList(false);
-    if (!activePlaybookId) { 
-      toast({ title: "Error", description: "No active playbook to add tasks to.", variant: "destructive" });
+    if (!activeDesignerFileId) { 
+      toast({ title: "Error", description: "No active file to add blocks to.", variant: "destructive" });
       return;
     }
     try {
       const moduleDataString = event.dataTransfer.getData("application/json");
       if (moduleDataString) {
         const moduleDefinition: AnsibleModuleDefinition = JSON.parse(moduleDataString);
-        addTaskToActivePlaybook(moduleDefinition);
+        addTaskToActiveFile(moduleDefinition);
       }
     } catch (error) {
       console.error("Error parsing dropped data:", error);
@@ -559,59 +549,59 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleNewPlaybook = () => {
-    const newPBook = createNewPlaybook();
-    setPlaybooks(prev => [...prev, newPBook]);
-    setActivePlaybookId(newPBook.id);
-    toast({ title: "New Playbook", description: `"${newPBook.name}" created and activated.`});
+  const handleNewFile = () => {
+    const newFile = createNewDesignerFile();
+    setDesignerFiles(prev => [...prev, newFile]);
+    setActiveDesignerFileId(newFile.id);
+    toast({ title: "New File", description: `"${newFile.name}" created and opened in designer.`});
   };
 
-  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
+  const handleCloseFile = (fileIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
+    const fileToClose = designerFiles.find(p => p.id === fileIdToClose);
 
-    setPlaybooks(prev => {
-      const remainingPlaybooks = prev.filter(p => p.id !== playbookIdToClose);
-      if (remainingPlaybooks.length === 0) {
-        const newDefault = createNewPlaybook("Default Playbook");
-        setActivePlaybookId(newDefault.id);
+    setDesignerFiles(prev => {
+      const remainingFiles = prev.filter(p => p.id !== fileIdToClose);
+      if (remainingFiles.length === 0) {
+        const newDefault = createNewDesignerFile("Default File.yml");
+        setActiveDesignerFileId(newDefault.id);
         return [newDefault];
       }
-      if (activePlaybookId === playbookIdToClose) {
-        const closedTabIndex = prev.findIndex(p => p.id === playbookIdToClose);
-        let newActiveId = remainingPlaybooks[0].id;
-        if (closedTabIndex > 0 && closedTabIndex <= remainingPlaybooks.length) {
-            const potentialPrevPlaybook = prev[closedTabIndex -1];
-            if (remainingPlaybooks.some(r => r.id === potentialPrevPlaybook.id)) {
-                newActiveId = potentialPrevPlaybook.id;
+      if (activeDesignerFileId === fileIdToClose) {
+        const closedTabIndex = prev.findIndex(p => p.id === fileIdToClose);
+        let newActiveId = remainingFiles[0].id;
+        if (closedTabIndex > 0 && closedTabIndex <= remainingFiles.length) {
+            const potentialPrevFile = prev[closedTabIndex -1];
+            if (remainingFiles.some(r => r.id === potentialPrevFile.id)) {
+                newActiveId = potentialPrevFile.id;
             }
         }
-        setActivePlaybookId(newActiveId);
+        setActiveDesignerFileId(newActiveId);
       }
-      return remainingPlaybooks;
+      return remainingFiles;
     });
-    if (playbookToClose) {
-        toast({ title: "Playbook Closed", description: `"${playbookToClose.name}" closed.`});
+    if (fileToClose) {
+        toast({ title: "File Closed", description: `"${fileToClose.name}" closed.`});
     }
   };
 
-  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
+  const openRenameModal = (fileId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    setRenamingPlaybookId(playbookId);
-    setTempPlaybookName(currentName);
+    setRenamingFileId(fileId);
+    setTempFileName(currentName);
     setIsRenameModalOpen(true);
   };
 
-  const handleRenamePlaybook = () => {
-    if (!renamingPlaybookId || tempPlaybookName.trim() === "") { 
-      toast({title: "Error", description: "Playbook name cannot be empty.", variant: "destructive"});
+  const handleRenameFile = () => {
+    if (!renamingFileId || tempFileName.trim() === "") { 
+      toast({title: "Error", description: "File name cannot be empty.", variant: "destructive"});
       return;
     }
-    setPlaybooks(prev => prev.map(p => p.id === renamingPlaybookId ? {...p, name: tempPlaybookName.trim()} : p));
-    toast({title: "Playbook Renamed", description: `Playbook renamed to "${tempPlaybookName.trim()}".`});
+    setDesignerFiles(prev => prev.map(p => p.id === renamingFileId ? {...p, name: tempFileName.trim()} : p));
+    toast({title: "File Renamed", description: `File renamed to "${tempFileName.trim()}".`});
     setIsRenameModalOpen(false);
-    setRenamingPlaybookId(null);
-    setTempPlaybookName("");
+    setRenamingFileId(null);
+    setTempFileName("");
   };
 
   const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -624,20 +614,7 @@ export function AnsibleArchitectLayout() {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (content) {
-        const fileNameLower = file.name.toLowerCase();
-        if (fileNameLower.endsWith(".yaml") || fileNameLower.endsWith(".yml")) {
-          // Placeholder for future YAML inventory validation
-        } else if (fileNameLower.endsWith(".json")) {
-           // Placeholder for future JSON inventory validation
-        } else if (fileNameLower.endsWith(".ini") || file.type === "text/plain" || fileNameLower.includes("hosts")) { 
-           // Placeholder for future INI inventory validation
-        } else {
-            toast({
-                title: "Unknown File Type",
-                description: `Cannot determine inventory type for "${file.name}". Please use .ini, .yaml, .yml, or .json extensions, or a file named 'hosts'.`,
-                variant: "default",
-            });
-        }
+        // Validation logic can be simplified or removed if not strictly ansible inventory
       } else {
         toast({ title: "Error", description: `Could not read file: ${file.name}`, variant: "destructive" });
       }
@@ -654,22 +631,73 @@ export function AnsibleArchitectLayout() {
 
   const handleFileSelect = (path: string) => {
     if (!project) return;
-    const file = project.files.find(f => f.path === path);
-    if (file) {
-      setActiveFile(file);
+    const fileData = project.files.find(f => f.path === path);
+    if (!fileData) return;
+  
+    if (!path.endsWith('.yml') && !path.endsWith('.yaml')) {
+      setActiveEditorFile(fileData);
       setMainView('editor');
+      return;
     }
+    
+    const existingFile = designerFiles.find(f => f.id === path);
+    if (existingFile) {
+      setActiveDesignerFileId(path);
+      setMainView('designer');
+      return;
+    }
+  
+    const tasks = parseYamlToTasks(fileData.content);
+    
+    const newDesignerFile: DesignerFileState = {
+      id: path,
+      name: path.split('/').pop() || path,
+      tasks: tasks,
+    };
+    
+    setDesignerFiles(prev => [...prev, newDesignerFile]);
+    setActiveDesignerFileId(newDesignerFile.id);
+    setMainView('designer');
+    toast({ title: "File Opened in Designer", description: `Switched to designer view for ${newDesignerFile.name}` });
   };
+  
 
-  const handleSaveActiveFile = () => {
-    if (project && activeFile) {
+  const handleSaveActiveEditorFile = () => {
+    if (project && activeEditorFile) {
       const updatedFiles = project.files.map(f =>
-        f.path === activeFile.path ? { ...f, content: editorContent, isDefault: false } : f
+        f.path === activeEditorFile.path ? { ...f, content: editorContent, isDefault: false } : f
       );
       const updatedProject = { ...project, files: updatedFiles };
       setProject(updatedProject);
-      setActiveFile({ ...activeFile, content: editorContent, isDefault: false });
-      toast({ title: "File Saved", description: `Changes to ${activeFile.path} have been saved.` });
+      setActiveEditorFile({ ...activeEditorFile, content: editorContent, isDefault: false });
+      toast({ title: "File Saved", description: `Changes to ${activeEditorFile.path} have been saved.` });
+    }
+  };
+
+  const handleSaveDesignerFile = () => {
+    const activeFile = getActiveDesignerFile();
+    if (!project || !activeFile) {
+      toast({title: "Error", description: "No active file in designer to save.", variant: "destructive"});
+      return;
+    };
+
+    const newYamlContent = activeFile.tasks.map(task => {
+        if (task.rawYAML) return task.rawYAML;
+        const taskObject: any = { name: task.name };
+        taskObject[task.module] = task.parameters || {};
+        return yaml.dump([taskObject], { indent: 2 });
+    }).join('\n');
+    
+    const updatedFiles = project.files.map(f => 
+        f.path === activeFile.id ? { ...f, content: newYamlContent, isDefault: false } : f
+    );
+    const fileExists = project.files.some(f => f.path === activeFile.id);
+
+    if (fileExists) {
+        setProject({ ...project, files: updatedFiles });
+        toast({ title: "File Saved", description: `Changes to ${activeFile.name} saved to project.` });
+    } else {
+        toast({ title: "Save Failed", description: `File path "${activeFile.id}" not found in project. Export instead.`, variant: "destructive" });
     }
   };
 
@@ -691,6 +719,10 @@ export function AnsibleArchitectLayout() {
 
   const confirmDelete = () => {
     if (itemToConfirmDelete) {
+        if (itemToConfirmDelete.type === 'file' && activeEditorFile?.path === itemToConfirmDelete.path) {
+          setActiveEditorFile(null);
+          setMainView('designer');
+        }
         handleDeleteFileOrFolder(itemToConfirmDelete.path);
     }
     setItemToConfirmDelete(null);
@@ -708,9 +740,8 @@ export function AnsibleArchitectLayout() {
 
     setProject({ ...project, files: updatedFiles });
 
-    // If the currently active file was deleted, deactivate it.
-    if (activeFile && activeFile.path.startsWith(path)) {
-      setActiveFile(null);
+    if (activeEditorFile && activeEditorFile.path.startsWith(path)) {
+      setActiveEditorFile(null);
       setMainView('designer');
     }
 
@@ -746,7 +777,9 @@ export function AnsibleArchitectLayout() {
       };
 
       setProject(newProject);
-      setActiveFile(null); // Clear active file on new project import
+      setActiveEditorFile(null);
+      setDesignerFiles([]);
+      setActiveDesignerFileId(null);
       toast({ title: "Project Imported", description: `Loaded "${newProject.name}" with ${newProject.files.length} files.` });
 
     } catch (error) {
@@ -856,7 +889,9 @@ export function AnsibleArchitectLayout() {
     };
     
     setProject(newProject);
-    setActiveFile(null); // Clear active file
+    setActiveEditorFile(null); // Clear active file
+    setDesignerFiles([]);
+    setActiveDesignerFileId(null);
     toast({ title: "Project Created", description: `Created "${newProject.name}" with ${defaultProjectFiles.length} files.` });
   };
 
@@ -893,10 +928,10 @@ export function AnsibleArchitectLayout() {
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
           <TabsContent value="project" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
-            <ProjectExplorer 
+             <ProjectExplorer 
                 project={project} 
                 onFileSelect={handleFileSelect} 
-                activeFilePath={activeFile?.path || null} 
+                activeFilePath={activeEditorFile?.path || activeDesignerFileId || null} 
                 onCreateDefaultProject={handleCreateDefaultProject}
                 onAcceptFolder={handleAcceptFolder}
                 onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
@@ -912,17 +947,18 @@ export function AnsibleArchitectLayout() {
         <Tabs value={mainView} onValueChange={(value) => setMainView(value as 'designer' | 'editor')} className="flex flex-col flex-1 min-w-0 min-h-0">
           <TabsList className="flex-shrink-0 border-b bg-card rounded-t-lg p-1">
              <TabsTrigger value="designer" className="text-xs px-2 py-1.5 h-auto">Designer</TabsTrigger>
-             <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeFile}>Editor</TabsTrigger>
+             <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeEditorFile}>Editor</TabsTrigger>
           </TabsList>
 
           <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden flex flex-col">
-            <div className="flex items-center p-2 border-b bg-card flex-shrink-0">
-                <Select value={activePlaybookId || ""} onValueChange={setActivePlaybookId}>
+            <div className="flex items-center justify-between p-2 border-b bg-card flex-shrink-0">
+              <div className="flex items-center">
+                <Select value={activeDesignerFileId || ""} onValueChange={setActiveDesignerFileId}>
                     <SelectTrigger className="w-[250px] h-9 text-sm font-medium">
-                        <SelectValue placeholder="Select a playbook" />
+                        <SelectValue placeholder="Select a file" />
                     </SelectTrigger>
                     <SelectContent>
-                        {playbooks.map((p) => (
+                        {designerFiles.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                             {p.name}
                         </SelectItem>
@@ -930,13 +966,13 @@ export function AnsibleArchitectLayout() {
                     </SelectContent>
                 </Select>
 
-                {activePlaybook && (
+                {activeDesignerFile && (
                 <>
                     <Button
                     variant="ghost"
                     size="icon"
                     className="ml-1.5 w-7 h-7"
-                    onClick={(e) => openRenameModal(activePlaybook.id, activePlaybook.name, e)}
+                    onClick={(e) => openRenameModal(activeDesignerFile.id, activeDesignerFile.name, e)}
                     >
                     <Edit2 className="w-4 h-4" />
                     </Button>
@@ -944,37 +980,46 @@ export function AnsibleArchitectLayout() {
                     variant="ghost"
                     size="icon"
                     className="w-7 h-7"
-                    onClick={(e) => handleClosePlaybook(activePlaybook.id, e)}
-                    disabled={playbooks.length <= 1}
+                    onClick={(e) => handleCloseFile(activeDesignerFile.id, e)}
+                    disabled={designerFiles.length <= 1}
                     >
                     <X className="w-4 h-4" />
                     </Button>
                 </>
                 )}
+              </div>
+              {activeDesignerFile && project?.files.some(f => f.path === activeDesignerFile.id) && (
+                 <Button size="sm" onClick={handleSaveDesignerFile}>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save to Project
+                 </Button>
+              )}
             </div>
-            <div
-                className="flex-grow min-h-0 flex"
-                onDrop={handleDropOnTaskList}
-                onDragOver={handleDragOverTaskList}
-                onDragLeave={handleDragLeaveTaskList}
-            >
-                {activePlaybook ? (
+            <div className="flex-grow min-h-0 flex">
+                {activeDesignerFile ? (
                 <>
                     <div
                         style={{ flex: `0 0 ${col2Width}px` }}
                         className="min-w-0 bg-card shadow-sm flex flex-col border-r"
                     >
-                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <TaskList
-                            tasks={activePlaybook.tasks}
-                            onUpdateTask={updateTaskInActivePlaybook}
-                            onDeleteTask={deleteTaskInActivePlaybook}
-                            onMoveTask={moveTaskInActivePlaybook}
-                            definedRoles={definedRoles}
-                            hoveredTaskId={hoveredTaskId}
-                            onSetHoveredTaskId={setHoveredTaskId}
-                            isDraggingOver={isDraggingOverTaskList}
-                        />
+                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">YAML Blocks</h2>
+                        <div
+                            className="flex-grow min-h-0"
+                            onDrop={handleDropOnTaskList}
+                            onDragOver={handleDragOverTaskList}
+                            onDragLeave={handleDragLeaveTaskList}
+                            >
+                            <TaskList
+                                tasks={activeDesignerFile.tasks}
+                                onUpdateTask={updateTaskInActiveFile}
+                                onDeleteTask={deleteTaskInActiveFile}
+                                onMoveTask={moveTaskInActiveFile}
+                                definedRoles={definedRoles}
+                                hoveredTaskId={hoveredTaskId}
+                                onSetHoveredTaskId={setHoveredTaskId}
+                                isDraggingOver={isDraggingOverTaskList}
+                            />
+                        </div>
                     </div>
 
                     <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
@@ -983,7 +1028,7 @@ export function AnsibleArchitectLayout() {
                     style={{ flex: '1 1 0%' }}
                     className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
                     >
-                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({activePlaybook.name})</h2>
+                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({activeDesignerFile.name})</h2>
                     <div className="flex-grow overflow-hidden">
                         <YamlDisplay
                         yamlSegments={yamlSegments}
@@ -995,30 +1040,29 @@ export function AnsibleArchitectLayout() {
                 </>
                 ) : (
                 <div className="flex items-center justify-center w-full text-muted-foreground">
-                    <p>No playbook selected. Create one to get started.</p>
+                    <p>No file selected. Create one or open a YAML file from the project.</p>
                 </div>
                 )}
             </div>
           </TabsContent>
 
           <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
-            {/* File Editor View */}
-            {activeFile ? (
+            {activeEditorFile ? (
               <div className="flex flex-col h-full">
                 <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-2">
-                     <h2 className="text-base font-semibold font-code" title={activeFile.path}>{activeFile.path}</h2>
-                     {activeFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
+                     <h2 className="text-base font-semibold font-code" title={activeEditorFile.path}>{activeEditorFile.path}</h2>
+                     {activeEditorFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
                   </div>
                   <div className="flex items-center gap-2">
-                    {activeFile.isDefault && (
-                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeFile.path)}>
+                    {activeEditorFile.isDefault && (
+                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeEditorFile.path)}>
                         <Check className="w-4 h-4 mr-2" />
                         Accept File
                       </Button>
                     )}
-                    <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeFile.path, 'file')}>
+                    <Button size="sm" onClick={handleSaveActiveEditorFile}>Save Changes</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeEditorFile.path, 'file')}>
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete File
                     </Button>
@@ -1029,13 +1073,13 @@ export function AnsibleArchitectLayout() {
                     value={editorContent}
                     onChange={(e) => setEditorContent(e.target.value)}
                     className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
-                    placeholder={`Content for ${activeFile.path}`}
+                    placeholder={`Content for ${activeEditorFile.path}`}
                   />
                 </div>
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Select a file from the Project Explorer to edit.</p>
+                <p>Select a non-YAML file from the Project Explorer to edit.</p>
               </div>
             )}
           </TabsContent>
@@ -1063,12 +1107,12 @@ export function AnsibleArchitectLayout() {
               
               <Separator className="my-2"/>
 
-              <Button onClick={handleNewPlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-                <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
+              <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New File
               </Button>
               <Separator className="my-2"/>
               <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
+                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate YAML File
               </Button>
               <input
                 type="file"
@@ -1078,11 +1122,11 @@ export function AnsibleArchitectLayout() {
                 className="hidden"
               />
               <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-                <Download className="w-3.5 h-3.5 mr-1.5" /> Export Playbook YAML
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Export Active File YAML
               </Button>
               <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
                 <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
-                Copy Playbook YAML
+                Copy Active File YAML
               </Button>
               <Separator className="my-2"/>
               <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
@@ -1170,23 +1214,23 @@ export function AnsibleArchitectLayout() {
       <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="font-headline">Rename Playbook</DialogTitle>
+            <DialogTitle className="font-headline">Rename File</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="playbookNameInput">Playbook Name</Label>
+            <Label htmlFor="fileNameInput">File Name</Label>
             <Input
-              id="playbookNameInput"
-              value={tempPlaybookName}
-              onChange={(e) => setTempPlaybookName(e.target.value)}
+              id="fileNameInput"
+              value={tempFileName}
+              onChange={(e) => setTempFileName(e.target.value)}
               className="mt-1 text-sm"
-              onKeyDown={(e) => e.key === 'Enter' && handleRenamePlaybook()}
+              onKeyDown={(e) => e.key === 'Enter' && handleRenameFile()}
             />
           </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleRenamePlaybook}>Save Name</Button>
+            <Button onClick={handleRenameFile}>Save Name</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1219,5 +1263,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
-    

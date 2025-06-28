@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus, ListCollapse, ListTree, List as ListIcon } from 'lucide-react';
+import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus, ListCollapse, ListTree, List as ListIcon, Check, Trash2 } from 'lucide-react';
 import type { Project, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -152,12 +152,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         className={cn(
           "flex items-center justify-between space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm whitespace-nowrap",
           isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
-          node.isDefault && !isActive && "text-destructive"
+          node.isDefault && !isActive && "text-muted-foreground italic"
         )}
         onClick={handleNodeClick}
       >
         <div className="flex items-center space-x-2 min-w-0">
-          <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
+          <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' ? 'text-primary' : (node.isDefault ? 'text-muted-foreground' : 'text-foreground'))} />
           <span className="truncate" title={node.name}>{node.name}</span>
         </div>
         
@@ -168,9 +168,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                     <TooltipTrigger asChild>
                         <button
                             onClick={handleAcceptClick}
-                            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
+                            className="p-0.5 rounded-full text-green-600 hover:bg-green-100 dark:hover:bg-green-900 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
                             aria-label="Accept default folder"
-                        />
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
                     </TooltipTrigger>
                     <TooltipContent>
                         <p>Accept Default Folder</p>
@@ -181,9 +183,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 <TooltipTrigger asChild>
                      <button
                         onClick={handleDeleteClick}
-                        className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+                        className="p-0.5 rounded-full text-red-600 hover:bg-red-100 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
                         aria-label="Delete folder"
-                    />
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                 </TooltipTrigger>
                 <TooltipContent>
                     <p>Delete Folder</p>
@@ -244,7 +248,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
       setCustomExpandedNodes(initialNodes);
       setExpandMode('custom');
     }
-  }, [project]); // Rerun when project changes to reset expansion for new projects
+  }, [project]);
 
   const getAllDirectoryPaths = React.useCallback((nodes: FileTreeNode[]): string[] => {
     const paths: string[] = [];
@@ -277,14 +281,16 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
   
   const handleNodeToggle = (path: string) => {
     setExpandMode('custom');
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path);
-    } else {
-      newExpanded.add(path);
-    }
-    setExpandedNodes(newExpanded);
-    setCustomExpandedNodes(newExpanded);
+    setExpandedNodes(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(path)) {
+        newExpanded.delete(path);
+      } else {
+        newExpanded.add(path);
+      }
+      setCustomExpandedNodes(newExpanded);
+      return newExpanded;
+    });
   };
 
   const renderTree = (nodes: FileTreeNode[], level: number): React.ReactNode => {
