@@ -792,7 +792,7 @@ export function AnsibleArchitectLayout() {
     
     setProject(newProject);
     setActiveFile(null); // Clear active file
-    toast({ title: "Project Created", description: `Created "${newProject.name}" with ${new_project_files.length} files.` });
+    toast({ title: "Project Created", description: `Created "${newProject.name}" with ${defaultProjectFiles.length} files.` });
   };
 
 
