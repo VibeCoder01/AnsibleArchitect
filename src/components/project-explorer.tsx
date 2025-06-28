@@ -113,6 +113,16 @@ const TreeNode: React.FC<{
       setIsExpanded(!isExpanded);
     }
   };
+  
+  const handleAcceptClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAccept(node.path);
+  };
+  
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(node.path, node.type);
+  };
 
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
   const isActive = node.path === activeFilePath;
@@ -136,7 +146,7 @@ const TreeNode: React.FC<{
           {node.isDefault && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onAccept(node.path)}>
+                <Button variant="ghost" size="icon" className="w-6 h-6" onClick={handleAcceptClick}>
                   <div className="w-2 h-2 rounded-full bg-green-500"></div>
                 </Button>
               </TooltipTrigger>
@@ -147,7 +157,7 @@ const TreeNode: React.FC<{
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onDelete(node.path, node.type)}>
+              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={handleDeleteClick}>
                 <div className="w-2 h-2 rounded-full bg-destructive"></div>
               </Button>
             </TooltipTrigger>
