@@ -881,7 +881,7 @@ export function AnsibleArchitectLayout() {
             <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
             <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
           </TabsList>
-          <TabsContent value="modules" className="flex-1 min-h-0">
+          <TabsContent value="modules" className="flex-1 flex flex-col min-h-0">
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
           <TabsContent value="project" className="flex-1 flex flex-col min-h-0">
