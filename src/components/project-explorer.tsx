@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus, Trash2, CheckCircle } from 'lucide-react';
+import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus } from 'lucide-react';
 import type { Project, ProjectFile, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,15 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface ProjectExplorerProps {
-  project: Project | null;
-  onFileSelect: (path: string) => void;
-  activeFilePath: string | null;
-  onCreateDefaultProject: () => void;
-  onAcceptFileOrFolder: (path: string) => void;
-  onDeleteFileOrFolder: (path: string) => void;
-}
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function buildFileTree(files: ProjectFile[]): FileTreeNode[] {
   const root: FileTreeNode = { name: 'root', path: '', type: 'directory', children: [] };
@@ -128,22 +120,36 @@ const TreeNode: React.FC<{
         className={cn(
           "flex items-center space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm",
           isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
-          node.isDefault && !isActive && "bg-primary/5"
+          node.isDefault && !isActive && "text-destructive"
         )}
         onClick={handleNodeClick}
       >
-        <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary')} />
+        <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
         <span className="truncate" title={node.name}>{node.name}</span>
       </div>
       <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0 group-hover/item:opacity-100 transition-opacity bg-muted/50 rounded-md">
         {node.isDefault && (
-          <Button variant="ghost" size="icon" className="w-6 h-6" title="Accept Default" onClick={() => onAccept(node.path)}>
-            <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onAccept(node.path)}>
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="center">
+              <p>Accept Default</p>
+            </TooltipContent>
+          </Tooltip>
         )}
-        <Button variant="ghost" size="icon" className="w-6 h-6" title="Delete" onClick={() => onDelete(node.path, node.type)}>
-          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="w-6 h-6" onClick={() => onDelete(node.path, node.type)}>
+              <div className="w-2 h-2 rounded-full bg-destructive"></div>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p>Delete</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {isExpanded && node.children && (
@@ -199,7 +205,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
   }
 
   return (
-    <>
+    <TooltipProvider>
       <div className="h-full flex flex-col">
         <div className="p-3 border-b flex-shrink-0">
           <h3 className="font-semibold text-base truncate" title={project.name}>{project.name}</h3>
@@ -236,6 +242,6 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 }
