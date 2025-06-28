@@ -14,6 +14,8 @@ interface ProjectExplorerProps {
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
   onCreateDefaultProject: () => void;
+  onAcceptFolder: (path: string) => void;
+  onDeleteFolder: (path: string) => void;
 }
 
 function buildFileTree(files: Project['files']): FileTreeNode[] {
@@ -99,7 +101,9 @@ const TreeNode: React.FC<{
   level: number;
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
-}> = ({ node, level, onFileSelect, activeFilePath }) => {
+  onAcceptFolder: (path: string) => void;
+  onDeleteFolder: (path: string) => void;
+}> = ({ node, level, onFileSelect, activeFilePath, onAcceptFolder, onDeleteFolder }) => {
   const [isExpanded, setIsExpanded] = React.useState(level < 2);
 
   const handleNodeClick = (e: React.MouseEvent) => {
@@ -110,6 +114,17 @@ const TreeNode: React.FC<{
     }
   };
 
+  const handleAcceptClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAcceptFolder(node.path);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDeleteFolder(node.path);
+  };
+
+
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
   const isActive = node.path === activeFilePath;
 
@@ -117,20 +132,61 @@ const TreeNode: React.FC<{
     <div style={{ paddingLeft: `${level * 1}rem` }} className="relative group/item">
       <div
         className={cn(
-          "flex items-center space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm",
+          "flex items-center justify-between space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm whitespace-nowrap",
           isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
           node.isDefault && !isActive && "text-destructive"
         )}
         onClick={handleNodeClick}
       >
-        <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
-        <span className="whitespace-nowrap" title={node.name}>{node.name}</span>
+        <div className="flex items-center space-x-2 min-w-0">
+          <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
+          <span className="truncate" title={node.name}>{node.name}</span>
+        </div>
+        
+        {node.type === 'directory' && (
+          <div className="flex items-center space-x-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+            {node.isDefault && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div
+                            role="button"
+                            onClick={handleAcceptClick}
+                            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600"
+                        />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Accept Default Folder</p>
+                    </TooltipContent>
+                </Tooltip>
+            )}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                     <div
+                        role="button"
+                        onClick={handleDeleteClick}
+                        className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600"
+                    />
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Delete Folder</p>
+                </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
       </div>
 
       {isExpanded && node.children && (
-        <div>
+        <div className="overflow-hidden">
           {node.children.map(child => (
-            <TreeNode key={child.path} node={child} level={level + 1} onFileSelect={onFileSelect} activeFilePath={activeFilePath} />
+            <TreeNode 
+                key={child.path} 
+                node={child} 
+                level={level + 1} 
+                onFileSelect={onFileSelect} 
+                activeFilePath={activeFilePath} 
+                onAcceptFolder={onAcceptFolder}
+                onDeleteFolder={onDeleteFolder}
+            />
           ))}
         </div>
       )}
@@ -139,7 +195,7 @@ const TreeNode: React.FC<{
 };
 
 
-export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject }: ProjectExplorerProps) {
+export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFolder, onDeleteFolder }: ProjectExplorerProps) {
   const fileTree = React.useMemo(() => {
     if (!project?.files) return [];
     return buildFileTree(project.files);
@@ -165,17 +221,21 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
         <div className="p-3 border-b flex-shrink-0">
           <h3 className="font-semibold text-base truncate" title={project.name}>{project.name}</h3>
         </div>
-        <ScrollArea className="flex-grow p-1">
-          {fileTree.map(node => (
-            <TreeNode
-              key={node.path}
-              node={node}
-              level={0}
-              onFileSelect={onFileSelect}
-              activeFilePath={activeFilePath}
-            />
-          ))}
-        </ScrollArea>
+        <div className="flex-grow overflow-auto">
+           <ScrollArea className="h-full w-full">
+              {fileTree.map(node => (
+                <TreeNode
+                  key={node.path}
+                  node={node}
+                  level={0}
+                  onFileSelect={onFileSelect}
+                  activeFilePath={activeFilePath}
+                  onAcceptFolder={onAcceptFolder}
+                  onDeleteFolder={onDeleteFolder}
+                />
+              ))}
+          </ScrollArea>
+        </div>
       </div>
     </TooltipProvider>
   );

@@ -882,15 +882,21 @@ export function AnsibleArchitectLayout() {
             <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
           </TabsList>
           <TabsContent value="modules" className="flex-1 min-h-0">
-            <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+            <div className="flex-grow overflow-auto">
+              <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+            </div>
           </TabsContent>
           <TabsContent value="project" className="flex-1 min-h-0">
-             <ProjectExplorer 
-                project={project} 
-                onFileSelect={handleFileSelect} 
-                activeFilePath={activeFile?.path || null} 
-                onCreateDefaultProject={handleCreateDefaultProject}
-            />
+             <div className="flex-grow overflow-auto">
+               <ProjectExplorer 
+                  project={project} 
+                  onFileSelect={handleFileSelect} 
+                  activeFilePath={activeFile?.path || null} 
+                  onCreateDefaultProject={handleCreateDefaultProject}
+                  onAcceptFolder={handleAcceptFileOrFolder}
+                  onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
+              />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -955,7 +961,7 @@ export function AnsibleArchitectLayout() {
                       aria-dropeffect="copy"
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <div className="flex-grow overflow-hidden p-3">
+                        <div className="flex-grow overflow-auto p-3">
                             <TaskList
                             tasks={p.tasks}
                             onUpdateTask={updateTaskInActivePlaybook}
@@ -1038,72 +1044,74 @@ export function AnsibleArchitectLayout() {
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
       >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
-        <ScrollArea className="flex-1">
-          <div className="p-3 space-y-2">
-            <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
-            </Button>
-            <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
-            
-            <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
-            </Button>
-            
-            <Separator className="my-2"/>
+        <div className="flex-1 overflow-auto">
+          <ScrollArea className="h-full w-full">
+            <div className="p-3 space-y-2 whitespace-nowrap">
+              <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
+              </Button>
+              <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
+              
+              <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
+              </Button>
+              
+              <Separator className="my-2"/>
 
-            <Button onClick={handleNewPlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
-            </Button>
-            <Separator className="my-2"/>
-            <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
-            </Button>
-            <input
-              type="file"
-              ref={playbookFileRef}
-              onChange={handlePlaybookFileChange}
-              accept=".yaml,.yml"
-              className="hidden"
-            />
-            <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <Download className="w-3.5 h-3.5 mr-1.5" /> Export Playbook YAML
-            </Button>
-            <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
-              Copy Playbook YAML
-            </Button>
-            <Separator className="my-2"/>
-            <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
-            </Button>
-            <input
-              type="file"
-              ref={inventoryFileRef}
-              onChange={handleInventoryFileChange}
-              accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
-              className="hidden"
-            />
-            <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
-            </Button>
-            <Separator className="my-2"/>
-            <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-              <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
-            </Button>
-            <Separator className="my-2"/>
-            <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
-              <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
-              </a>
-            </Button>
-            <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
-              <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
-              </a>
-            </Button>
-            <Separator className="my-2"/>
-          </div>
-        </ScrollArea>
+              <Button onClick={handleNewPlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
+              </Button>
+              <Separator className="my-2"/>
+              <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Playbook
+              </Button>
+              <input
+                type="file"
+                ref={playbookFileRef}
+                onChange={handlePlaybookFileChange}
+                accept=".yaml,.yml"
+                className="hidden"
+              />
+              <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <Download className="w-3.5 h-3.5 mr-1.5" /> Export Playbook YAML
+              </Button>
+              <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
+                Copy Playbook YAML
+              </Button>
+              <Separator className="my-2"/>
+              <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
+              </Button>
+              <input
+                type="file"
+                ref={inventoryFileRef}
+                onChange={handleInventoryFileChange}
+                accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
+                className="hidden"
+              />
+              <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
+              </Button>
+              <Separator className="my-2"/>
+              <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+                <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
+              </Button>
+              <Separator className="my-2"/>
+              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+                <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
+                </a>
+              </Button>
+              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start">
+                <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
+                </a>
+              </Button>
+              <Separator className="my-2"/>
+            </div>
+          </ScrollArea>
+        </div>
       </div>
 
       {/* Modals */}
