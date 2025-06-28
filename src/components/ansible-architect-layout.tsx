@@ -941,14 +941,12 @@ export function AnsibleArchitectLayout() {
                   <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
                 </div>
                 <div className="flex-1 min-h-0">
-                  <ScrollArea className="h-full">
-                    <Textarea
-                      value={editorContent}
-                      onChange={(e) => setEditorContent(e.target.value)}
-                      className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
-                      placeholder={`Content for ${activeFile.path}`}
-                    />
-                  </ScrollArea>
+                  <Textarea
+                    value={editorContent}
+                    onChange={(e) => setEditorContent(e.target.value)}
+                    className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
+                    placeholder={`Content for ${activeFile.path}`}
+                  />
                 </div>
               </div>
             ) : (
