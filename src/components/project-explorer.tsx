@@ -138,7 +138,7 @@ const TreeNode: React.FC<{
         onClick={handleNodeClick}
       >
         <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' && 'text-primary', node.isDefault && !isActive && 'text-destructive/80')} />
-        <span className="truncate" title={node.name}>{node.name}</span>
+        <span className="whitespace-nowrap" title={node.name}>{node.name}</span>
       </div>
       
       {node.type === 'directory' && (

@@ -20,7 +20,7 @@ interface YamlDisplayProps {
 export function YamlDisplay({ yamlSegments, hoveredTaskId, onSetHoveredSegmentId }: YamlDisplayProps) {
   return (
     <ScrollArea className="h-full w-full">
-      <pre className="p-4 font-code text-xs whitespace-pre-wrap break-all">
+      <pre className="p-4 font-code text-xs whitespace-pre">
         {yamlSegments.length > 0 ? (
           yamlSegments.map((segment, index) => (
             <span

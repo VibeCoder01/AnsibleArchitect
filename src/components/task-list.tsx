@@ -373,8 +373,8 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask, onMoveTask, define
                   </Button>
                   <IconComponent className="w-5 h-5 text-primary flex-shrink-0 mr-2" />
                   <div className="flex-grow min-w-0">
-                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight truncate" title={task.name}>{task.name}</CardTitle>
-                    <CardDescription className="text-xs truncate" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
+                    <CardTitle className="text-sm font-medium text-card-foreground leading-tight whitespace-nowrap" title={task.name}>{task.name}</CardTitle>
+                    <CardDescription className="text-xs whitespace-nowrap" title={`Module: ${task.module}`}>Module: {task.module}</CardDescription>
                   </div>
                   <div className={cn(
                     "flex items-center space-x-0.5 transition-opacity flex-shrink-0 ml-2",
