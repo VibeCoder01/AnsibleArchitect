@@ -854,7 +854,7 @@ export function AnsibleArchitectLayout() {
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
         </div>
-        <Tabs defaultValue="modules" className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue="project" className="flex-1 flex flex-col min-h-0">
           <TabsList className="flex-shrink-0 mx-3 mt-2">
             <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
             <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
