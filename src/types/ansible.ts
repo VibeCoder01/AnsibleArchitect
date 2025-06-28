@@ -36,7 +36,7 @@ export type AnsiblePlaybookYAML = AnsiblePlay[]; // Represents the structure wri
 
 // Reference to a defined Ansible Role (name only for now)
 export interface AnsibleRoleRef {
-  id: string;
+  id:string;
   name: string;
 }
 
@@ -48,3 +48,20 @@ export interface PlaybookState {
   // Future: unsavedChanges?: boolean; filePath?: string;
 }
 
+// Types for Project Import/Export
+export interface ProjectFile {
+  path: string;
+  content: string;
+}
+
+export interface Project {
+  name: string;
+  files: ProjectFile[];
+}
+
+export interface FileTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileTreeNode[];
+}

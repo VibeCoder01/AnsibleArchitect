@@ -4,20 +4,23 @@ import * as React from "react";
 import dynamic from 'next/dynamic';
 import { AnsibleArchitectIcon } from "@/components/icons/ansible-architect-icon";
 import { ModulePalette } from "@/components/module-palette";
+import { ProjectExplorer } from "@/components/project-explorer";
 import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud } from "lucide-react";
 import * as yaml from "js-yaml";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState } from "@/types/ansible";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, PlaybookState, Project, ProjectFile } from "@/types/ansible";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from 'uuid';
+import JSZip from "jszip";
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
   ssr: false,
@@ -115,16 +118,15 @@ export function AnsibleArchitectLayout() {
   const { toast } = useToast();
   const [isDraggingOverTaskList, setIsDraggingOverTaskList] = React.useState(false);
 
-  const [col1Width, setCol1Width] = React.useState(300); // Module Palette
-  const [col2Width, setCol2Width] = React.useState(450); // Task List (within middle area)
-  const [actionsPanelWidth, setActionsPanelWidth] = React.useState(256); // Actions Panel
+  const [col1Width, setCol1Width] = React.useState(300);
+  const [col2Width, setCol2Width] = React.useState(450);
+  const [actionsPanelWidth, setActionsPanelWidth] = React.useState(256);
 
   const [draggingResizer, setDraggingResizer] = React.useState<"col1" | "col2" | "actionsPanel" | null>(null);
   const [startX, setStartX] = React.useState(0);
   const [initialCol1W, setInitialCol1W] = React.useState(0);
   const [initialCol2W, setInitialCol2W] = React.useState(0);
   const [initialActionsPanelW, setInitialActionsPanelW] = React.useState(0);
-
 
   const [definedRoles, setDefinedRoles] = React.useState<AnsibleRoleRef[]>([]);
   const [isManageRolesModalOpen, setIsManageRolesModalOpen] = React.useState(false);
@@ -138,8 +140,15 @@ export function AnsibleArchitectLayout() {
   
   const inventoryFileRef = React.useRef<HTMLInputElement>(null);
   const playbookFileRef = React.useRef<HTMLInputElement>(null);
+  const projectZipRef = React.useRef<HTMLInputElement>(null);
 
   const [isInventoryVisualizerOpen, setIsInventoryVisualizerOpen] = React.useState(false);
+
+  // Project state
+  const [project, setProject] = React.useState<Project | null>(null);
+  const [activeFile, setActiveFile] = React.useState<ProjectFile | null>(null);
+  const [editorContent, setEditorContent] = React.useState<string>("");
+  const [mainView, setMainView] = React.useState<'designer' | 'editor'>('designer');
 
 
   React.useEffect(() => {
@@ -190,6 +199,14 @@ export function AnsibleArchitectLayout() {
     }
   }, [playbooks, activePlaybookId, isClientReady]);
 
+  React.useEffect(() => {
+    if (activeFile) {
+      setEditorContent(activeFile.content);
+    } else {
+      setEditorContent("");
+    }
+  }, [activeFile]);
+
   const getActivePlaybook = React.useCallback(() => {
     return playbooks.find(p => p.id === activePlaybookId);
   }, [playbooks, activePlaybookId]);
@@ -234,12 +251,12 @@ export function AnsibleArchitectLayout() {
 
   const handleAddTaskFromPalette = (moduleDef: AnsibleModuleDefinition) => {
     addTaskToActivePlaybook(moduleDef);
+    setMainView('designer');
   };
 
   const updateTaskInActivePlaybook = (updatedTask: AnsibleTask) => {
     const currentActivePlaybook = playbooks.find(p => p.id === activePlaybookId);
     if (!currentActivePlaybook) return;
-    // The updatedTask from TaskList should already have isPristine set to false
     updateActivePlaybookState({
       tasks: currentActivePlaybook.tasks.map(task => (task.id === updatedTask.id ? updatedTask : task)),
     });
@@ -467,7 +484,7 @@ export function AnsibleArchitectLayout() {
       const newW2 = initialCol2W + deltaX;
       setCol2Width(Math.max(MIN_COLUMN_WIDTH, newW2));
     } else if (draggingResizer === "actionsPanel") {
-      const newAPW = initialActionsPanelW - deltaX; // Dragging right decreases right panel width
+      const newAPW = initialActionsPanelW - deltaX;
       setActionsPanelWidth(Math.max(MIN_COLUMN_WIDTH, newAPW));
     }
   }, [draggingResizer, startX, initialCol1W, initialCol2W, initialActionsPanelW]);
@@ -578,367 +595,6 @@ export function AnsibleArchitectLayout() {
     setTempPlaybookName("");
   };
 
-  const validateIniInventoryContent = (content: string, fileName: string) => {
-    const lines = content.split(/\r?\n/);
-    let currentGroup: string | null = null;
-    let isVarsSection = false;
-    let isChildrenSection = false;
-    const groups: Record<string, string[]> = {};
-    let hostCount = 0;
-    let errorLine = -1;
-    let errorMessage = "";
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line === "" || line.startsWith("#") || line.startsWith(";")) {
-            continue; 
-        }
-
-        if (line.startsWith("[") && line.endsWith("]")) {
-            const groupNameRaw = line.substring(1, line.length - 1).trim();
-            if (!groupNameRaw || groupNameRaw.includes("[") || groupNameRaw.includes("]")) {
-                errorLine = i + 1;
-                errorMessage = `Malformed group header: ${line}`;
-                break;
-            }
-            
-            isVarsSection = groupNameRaw.endsWith(":vars");
-            isChildrenSection = groupNameRaw.endsWith(":children");
-            currentGroup = groupNameRaw;
-            
-            if (!groups[currentGroup]) groups[currentGroup] = [];
-
-        } else if (currentGroup) {
-            const parts = line.split(/\s+/);
-            const firstWord = parts[0];
-
-            if (isVarsSection) {
-                if (!line.includes("=")) {
-                    errorLine = i + 1;
-                    errorMessage = `Non-variable line "${line}" found in :vars section "${currentGroup}". Variable lines must be in 'key=value' format.`;
-                    break;
-                }
-                if (!/^\s*\S+\s*=\s*\S+/.test(line.replace(/\s*#.*$/, ""))) { 
-                    errorLine = i + 1;
-                    errorMessage = `Malformed variable definition: "${line}" in :vars section "${currentGroup}". Expected 'key=value'.`;
-                    break;
-                }
-                groups[currentGroup].push(line);
-            } else if (isChildrenSection) {
-                if (line.includes("=") || line.includes(" ")) { 
-                    errorLine = i + 1;
-                    errorMessage = `Invalid entry in :children section "${currentGroup}": "${line}". Child group names should be single words without variables.`;
-                    break;
-                }
-                if (!/^[a-zA-Z0-9_.-]+$/.test(firstWord)) {
-                    errorLine = i + 1;
-                    errorMessage = `Invalid characters in child group name: "${firstWord}" from line "${line}" in section "${currentGroup}".`;
-                    break;
-                }
-                groups[currentGroup].push(firstWord);
-            } else { 
-                if (!firstWord) {
-                    errorLine = i + 1;
-                    errorMessage = `Empty host entry in group "${currentGroup}".`;
-                    break;
-                }
-                if (!/^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) { 
-                    errorLine = i + 1;
-                    errorMessage = `Potentially invalid characters in host name: "${firstWord.split('=')[0].trim()}" from line "${line}" in group "${currentGroup}".`;
-                    break;
-                }
-                groups[currentGroup].push(firstWord); 
-                hostCount++;
-            }
-        } else { 
-             const parts = line.split(/\s+/);
-             const firstWord = parts[0];
-             if (firstWord && /^[a-zA-Z0-9_.-]+/.test(firstWord.split('=')[0].trim())) {
-                hostCount++;
-             } else {
-                errorLine = i + 1;
-                errorMessage = `Unexpected line format or entry outside a group: ${line}`;
-                break;
-             }
-        }
-    }
-
-    if (errorLine !== -1) {
-        toast({
-            title: "INI Inventory Validation Failed",
-            description: `Error in "${fileName}" on line ${errorLine}: ${errorMessage}`,
-            variant: "destructive",
-        });
-    } else {
-        const groupCount = Object.keys(groups).filter(g => !g.endsWith(":vars") && !g.endsWith(":children")).length;
-        const childrenGroupCount = Object.keys(groups).filter(g => g.endsWith(":children")).length;
-        const varsGroupCount = Object.keys(groups).filter(g => g.endsWith(":vars")).length;
-
-        let summary = `File "${fileName}" (INI) basic structure appears valid. `;
-        summary += `Found ${groupCount} explicit group(s), ${hostCount} host(s) (including ungrouped). `;
-        if (childrenGroupCount > 0) summary += `${childrenGroupCount} children definition(s). `;
-        if (varsGroupCount > 0) summary += `${varsGroupCount} group vars definition(s).`;
-
-        toast({
-            title: "INI Inventory Validation Successful",
-            description: summary.trim(),
-            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-        });
-    }
-  };
-
-  const validateYamlInventoryContent = (content: string, fileName: string) => {
-    try {
-        const inventory = yaml.load(content);
-        if (typeof inventory !== 'object' || inventory === null) {
-            toast({
-                title: "YAML Inventory Validation Failed",
-                description: `File "${fileName}" (YAML) root must be an object/dictionary.`,
-                variant: "destructive",
-            });
-            return;
-        }
-
-        let hostCount = 0;
-        let topLevelGroupCount = 0;
-        const warnings: string[] = [];
-        const errors: string[] = [];
-        const processedHosts = new Set<string>();
-
-        function processGroup(groupName: string, groupData: any, path: string) {
-            if (typeof groupData !== 'object' || groupData === null) {
-                errors.push(`Group '${path}' is not a valid object.`);
-                return;
-            }
-            
-            if (groupName === 'all' && groupData.hosts && typeof groupData.hosts === 'object' && groupData.hosts !== null) {
-
-                 // Count hosts directly under 'all' group if they are defined there
-                Object.keys(groupData.hosts).forEach(hostName => {
-                    hostCount++;
-                    if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
-
-                       warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
-                    }
-                });
-            }
-
-
-            if (groupData.hosts) {
-                if (typeof groupData.hosts !== 'object' || groupData.hosts === null || Array.isArray(groupData.hosts)) {
-                    errors.push(`'hosts' key in group '${path}' must be an object (dictionary).`);
-                } else {
-
-                     if (groupName !== 'all') { // Avoid double counting hosts if also under 'all'
-                        hostCount += Object.keys(groupData.hosts).length;
-                     }
-
-                    for (const hostName in groupData.hosts) {
-                        processedHosts.add(hostName);
-                        if (groupData.hosts[hostName] !== null && (typeof groupData.hosts[hostName] !== 'object' || Array.isArray(groupData.hosts[hostName]))) {
-                           warnings.push(`Variables for host '${hostName}' in group '${path}' should be an object (dictionary) or null.`);
-                        }
-                    }
-                }
-            }
-
-            if (groupData.vars) {
-                if (typeof groupData.vars !== 'object' || groupData.vars === null || Array.isArray(groupData.vars)) {
-                    errors.push(`'vars' key in group '${path}' must be an object (dictionary).`);
-                }
-            }
-
-            if (groupData.children) {
-                if (typeof groupData.children !== 'object' || groupData.children === null || Array.isArray(groupData.children)) {
-                    errors.push(`'children' key in group '${path}' must be an object (dictionary).`);
-                } else {
-                    for (const childGroupName in groupData.children) {
-                        processGroup(childGroupName, groupData.children[childGroupName], `${path}.children.${childGroupName}`);
-                    }
-                }
-            }
-        }
-        
-        const parsedInventory = inventory as Record<string, any>;
-        for (const groupName in parsedInventory) {
-             if (groupName.startsWith('_') && groupName !== '_meta') { 
-                continue;
-             }
-             topLevelGroupCount++;
-             processGroup(groupName, parsedInventory[groupName], groupName);
-        }
-
-        hostCount = processedHosts.size;
-        
-        if (errors.length > 0) {
-             toast({
-                title: "YAML Inventory Validation Failed",
-                description: `File "${fileName}" (YAML) has structural errors: ${errors.join("; ")}`,
-                variant: "destructive",
-            });
-        } else {
-            let summary = `File "${fileName}" (YAML) syntax is valid. `;
-            summary += `Found ${topLevelGroupCount} top-level group(s) and ${hostCount} unique host(s).`;
-            if (warnings.length > 0) {
-                 summary += ` Warnings: ${warnings.join("; ")}`;
-                 toast({
-                    title: "YAML Inventory Validation Successful (with warnings)",
-                    description: summary,
-                    variant: "default",
-                    className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
-                });
-            } else {
-                 toast({
-                    title: "YAML Inventory Validation Successful",
-                    description: summary,
-                    className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-                });
-            }
-        }
-
-    } catch (error) {
-        let errorMessage = "Invalid YAML syntax.";
-        if (error instanceof yaml.YAMLException) {
-            errorMessage = `Invalid YAML syntax: ${error.message.split('\n')[0]}`;
-        } else if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-        toast({
-            title: "YAML Inventory Validation Failed",
-            description: `Error in "${fileName}" (YAML): ${errorMessage}`,
-            variant: "destructive",
-        });
-        console.error("YAML Inventory Validation Error:", error);
-    }
-  };
-
-  const validateJsonInventoryContent = (content: string, fileName: string) => {
-    try {
-      const inventory = JSON.parse(content);
-      if (typeof inventory !== 'object' || inventory === null || Array.isArray(inventory)) {
-        toast({
-          title: "JSON Inventory Validation Failed",
-          description: `File "${fileName}" (JSON) root must be an object.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      let hostCount = 0;
-      let groupCount = 0;
-      const warnings: string[] = [];
-      const errors: string[] = [];
-      const processedHosts = new Set<string>();
-
-      if (inventory._meta) {
-        if (typeof inventory._meta !== 'object' || inventory._meta === null || Array.isArray(inventory._meta)) {
-          errors.push("'_meta' key must be an object.");
-        } else if (inventory._meta.hostvars) {
-          if (typeof inventory._meta.hostvars !== 'object' || inventory._meta.hostvars === null || Array.isArray(inventory._meta.hostvars)) {
-            errors.push("'_meta.hostvars' must be an object.");
-          } else {
-            for (const hostName in inventory._meta.hostvars) {
-              processedHosts.add(hostName);
-              if (inventory._meta.hostvars[hostName] !== null && (typeof inventory._meta.hostvars[hostName] !== 'object' || Array.isArray(inventory._meta.hostvars[hostName]))) {
-                warnings.push(`Host variables for '${hostName}' in _meta.hostvars should be an object or null.`);
-              }
-            }
-          }
-        }
-      }
-      
-      for (const groupName in inventory) {
-        if (groupName === "_meta") continue;
-
-        groupCount++;
-        const groupData = inventory[groupName];
-
-        if (typeof groupData !== 'object' || groupData === null || Array.isArray(groupData)) {
-          errors.push(`Group '${groupName}' must be an object.`);
-          continue;
-        }
-
-        if (groupData.hosts) {
-          if (!Array.isArray(groupData.hosts)) {
-            errors.push(`'hosts' key in group '${groupName}' must be an array.`);
-          } else {
-            groupData.hosts.forEach((host: any) => {
-              if (typeof host !== 'string') {
-                warnings.push(`Host entry in group '${groupName}' is not a string: ${JSON.stringify(host)}.`);
-              } else {
-                processedHosts.add(host);
-              }
-            });
-          }
-        }
-
-        if (groupData.children) {
-          if (!Array.isArray(groupData.children)) {
-            errors.push(`'children' key in group '${groupName}' must be an array.`);
-          } else {
-            groupData.children.forEach((childGroup: any) => {
-              if (typeof childGroup !== 'string') {
-                warnings.push(`Child group entry in group '${groupName}' is not a string: ${JSON.stringify(childGroup)}.`);
-              }
-            });
-          }
-        }
-        
-        if (groupData.vars) {
-          if (typeof groupData.vars !== 'object' || groupData.vars === null || Array.isArray(groupData.vars)) {
-            errors.push(`'vars' key in group '${groupName}' must be an object.`);
-          }
-        }
-      }
-      hostCount = processedHosts.size;
-
-
-      if (errors.length > 0) {
-        toast({
-          title: "JSON Inventory Validation Failed",
-          description: `File "${fileName}" (JSON) has structural errors: ${errors.join("; ")}`,
-          variant: "destructive",
-        });
-      } else {
-        let summary = `File "${fileName}" (JSON) syntax is valid. `;
-        summary += `Found ${groupCount} group(s) and ${hostCount} unique host(s).`;
-        if (inventory._meta?.hostvars) {
-            summary += ` Contains '_meta.hostvars'.`;
-        }
-        if (warnings.length > 0) {
-          summary += ` Warnings: ${warnings.join("; ")}`;
-          toast({
-            title: "JSON Inventory Validation Successful (with warnings)",
-            description: summary,
-            variant: "default",
-            className: "bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300"
-          });
-        } else {
-          toast({
-            title: "JSON Inventory Validation Successful",
-            description: summary,
-            className: "bg-green-100 border-green-400 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-300",
-          });
-        }
-      }
-
-    } catch (error) {
-      let errorMessage = "Invalid JSON syntax.";
-      if (error instanceof SyntaxError) {
-        errorMessage = `Invalid JSON syntax: ${error.message}`;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      toast({
-        title: "JSON Inventory Validation Failed",
-        description: `Error in "${fileName}" (JSON): ${errorMessage}`,
-        variant: "destructive",
-      });
-      console.error("JSON Inventory Validation Error:", error);
-    }
-  };
-
-
   const handleInventoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -951,11 +607,11 @@ export function AnsibleArchitectLayout() {
       if (content) {
         const fileNameLower = file.name.toLowerCase();
         if (fileNameLower.endsWith(".yaml") || fileNameLower.endsWith(".yml")) {
-          validateYamlInventoryContent(content, file.name);
+          // Placeholder for future YAML inventory validation
         } else if (fileNameLower.endsWith(".json")) {
-          validateJsonInventoryContent(content, file.name);
+           // Placeholder for future JSON inventory validation
         } else if (fileNameLower.endsWith(".ini") || file.type === "text/plain" || fileNameLower.includes("hosts")) { 
-          validateIniInventoryContent(content, file.name);
+           // Placeholder for future INI inventory validation
         } else {
             toast({
                 title: "Unknown File Type",
@@ -977,6 +633,96 @@ export function AnsibleArchitectLayout() {
     }
   };
 
+  const handleFileSelect = (path: string) => {
+    const file = project?.files.find(f => f.path === path);
+    if (file) {
+      setActiveFile(file);
+      setMainView('editor');
+    }
+  };
+
+  const handleSaveActiveFile = () => {
+    if (project && activeFile) {
+      const updatedFiles = project.files.map(f =>
+        f.path === activeFile.path ? { ...f, content: editorContent } : f
+      );
+      const updatedProject = { ...project, files: updatedFiles };
+      setProject(updatedProject);
+      setActiveFile({ ...activeFile, content: editorContent });
+      toast({ title: "File Saved", description: `Changes to ${activeFile.path} have been saved in memory.` });
+    }
+  };
+  
+  const handleImportZip = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    toast({ title: "Importing...", description: "Reading project from ZIP file." });
+
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const files: ProjectFile[] = [];
+      const promises: Promise<void>[] = [];
+
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir) {
+          const promise = zipEntry.async('string').then(content => {
+            files.push({ path: relativePath, content });
+          });
+          promises.push(promise);
+        }
+      });
+
+      await Promise.all(promises);
+
+      const newProject: Project = {
+        name: file.name.replace(/\.zip$/, ''),
+        files,
+      };
+
+      setProject(newProject);
+      toast({ title: "Project Imported", description: `Loaded "${newProject.name}" with ${newProject.files.length} files.` });
+
+    } catch (error) {
+      console.error("Error importing ZIP file:", error);
+      toast({ title: "Import Failed", description: "Could not read the ZIP file. Ensure it is a valid archive.", variant: "destructive" });
+    }
+
+    if (projectZipRef.current) {
+      projectZipRef.current.value = "";
+    }
+  };
+
+  const handleExportZip = async () => {
+    if (!project) {
+      toast({ title: "Nothing to Export", description: "No project is currently loaded.", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Exporting...", description: `Packaging "${project.name}" into a ZIP file.` });
+
+    try {
+      const zip = new JSZip();
+      project.files.forEach(file => {
+        zip.file(file.path, file.content);
+      });
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${project.name}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      toast({ title: "Project Exported", description: `"${project.name}.zip" has been downloaded.` });
+    } catch (error) {
+      console.error("Error exporting ZIP file:", error);
+      toast({ title: "Export Failed", description: "An error occurred while creating the ZIP file.", variant: "destructive" });
+    }
+  };
+
+
   if (!isClientReady) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-foreground">
@@ -990,7 +736,8 @@ export function AnsibleArchitectLayout() {
 
 
   return (
-    <div className="flex h-screen bg-background p-4 space-x-0"> {/* space-x-0 to rely on resizers for spacing */}
+    <div className="flex h-screen bg-background p-4 space-x-0">
+      {/* Left Panel */}
       <div
         style={{ flex: `0 0 ${col1Width}px` }}
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
@@ -999,124 +746,162 @@ export function AnsibleArchitectLayout() {
           <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
           <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
         </div>
-        <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+        <Tabs defaultValue="modules" className="flex-1 flex flex-col min-h-0">
+          <TabsList className="flex-shrink-0 mx-3 mt-2">
+            <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
+            <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
+          </TabsList>
+          <TabsContent value="modules" className="flex-1 min-h-0">
+            <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+          </TabsContent>
+          <TabsContent value="project" className="flex-1 min-h-0">
+             <ProjectExplorer project={project} onFileSelect={handleFileSelect} activeFilePath={activeFile?.path || null} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
-      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative"> {/* Wrapper for Tabs area */}
-        <Tabs
-          value={activePlaybookId || ""}
-          onValueChange={setActivePlaybookId}
-          className="flex flex-col flex-1 min-w-0 min-h-0" 
-        >
-          <div className="flex items-center border-b bg-card rounded-t-lg">
-            <TabsList className="bg-card p-1 h-auto rounded-t-lg rounded-b-none">
-              {playbooks.map(p => (
-                <TabsTrigger
-                  key={p.id}
-                  value={p.id}
-                  className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
-                >
-                  <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
-                  <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20"
-                      aria-label="Rename playbook"
-                    >
-                      <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => openRenameModal(p.id, p.name, e)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </span>
-                    </Button>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20"
-                      aria-label="Close playbook"
-                    >
-                      <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => handleClosePlaybook(p.id, e)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}
-                      >
-                        <X className="w-3 h-3" />
-                      </span>
-                    </Button>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
-              <FilePlus className="w-4 h-4" />
-            </Button>
-          </div>
-          
-          <div className="flex-grow min-h-0 relative rounded-b-lg overflow-hidden bg-card">
-              {playbooks.map(p => (
-              <TabsContent
-                  key={p.id}
-                  value={p.id}
-                  className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
-              >
-                  <div
-                  style={{ flex: `0 0 ${col2Width}px` }}
-                  onDrop={handleDropOnTaskList}
-                  onDragOver={handleDragOverTaskList}
-                  onDragLeave={handleDragLeaveTaskList}
-                  className={`min-w-0 bg-card shadow-sm flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} border-r`} 
-                  aria-dropeffect="copy"
-                  >
-                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                    <div className="flex-grow overflow-hidden p-3">
-                        <TaskList
-                        tasks={p.tasks}
-                        onUpdateTask={updateTaskInActivePlaybook}
-                        onDeleteTask={deleteTaskInActivePlaybook}
-                        onMoveTask={moveTaskInActivePlaybook}
-                        definedRoles={definedRoles}
-                        hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                        onSetHoveredTaskId={setHoveredTaskId}
-                        />
-                    </div>
-                  </div>
+      {/* Middle Panel */}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative">
+        <Tabs value={mainView} onValueChange={(value) => setMainView(value as 'designer' | 'editor')} className="flex flex-col flex-1 min-w-0 min-h-0">
+          <TabsList className="flex-shrink-0 border-b bg-card rounded-t-lg p-1">
+             <TabsTrigger value="designer" className="text-xs px-2 py-1.5 h-auto">Designer</TabsTrigger>
+             <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeFile}>Editor</TabsTrigger>
+          </TabsList>
 
-                  <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
-
-                  <div
-                    style={{ flex: '1 1 0%' }}
-                    className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+          <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
+             {/* Playbook Designer View */}
+            <Tabs
+              value={activePlaybookId || ""}
+              onValueChange={setActivePlaybookId}
+              className="flex flex-col flex-1 min-w-0 min-h-0" 
+            >
+              <div className="flex items-center border-b bg-card">
+                <TabsList className="bg-card p-1 h-auto rounded-none">
+                  {playbooks.map(p => (
+                    <TabsTrigger
+                      key={p.id}
+                      value={p.id}
+                      className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
+                    >
+                      <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
+                      <Button asChild variant="ghost" size="icon" className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20" aria-label="Rename playbook">
+                          <span role="button" tabIndex={0} onClick={(e) => openRenameModal(p.id, p.name, e)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}>
+                            <Edit2 className="w-3 h-3" />
+                          </span>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon" className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20" aria-label="Close playbook">
+                          <span role="button" tabIndex={0} onClick={(e) => handleClosePlaybook(p.id, e)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}>
+                            <X className="w-3 h-3" />
+                          </span>
+                      </Button>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
+                  <FilePlus className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="flex-grow min-h-0 relative overflow-hidden">
+                  {playbooks.map(p => (
+                  <TabsContent
+                      key={p.id}
+                      value={p.id}
+                      className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
                   >
-                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-                    <div className="flex-grow overflow-hidden">
-                        <YamlDisplay
-                        yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
-                        hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                        onSetHoveredSegmentId={setHoveredTaskId}
-                        />
-                    </div>
-                  </div>
-              </TabsContent>
-              ))}
-          </div>
+                      <div
+                      style={{ flex: `0 0 ${col2Width}px` }}
+                      onDrop={handleDropOnTaskList}
+                      onDragOver={handleDragOverTaskList}
+                      onDragLeave={handleDragLeaveTaskList}
+                      className={`min-w-0 bg-card shadow-sm flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} border-r`} 
+                      aria-dropeffect="copy"
+                      >
+                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
+                        <div className="flex-grow overflow-hidden p-3">
+                            <TaskList
+                            tasks={p.tasks}
+                            onUpdateTask={updateTaskInActivePlaybook}
+                            onDeleteTask={deleteTaskInActivePlaybook}
+                            onMoveTask={moveTaskInActivePlaybook}
+                            definedRoles={definedRoles}
+                            hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                            onSetHoveredTaskId={setHoveredTaskId}
+                            />
+                        </div>
+                      </div>
+
+                      <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+
+                      <div
+                        style={{ flex: '1 1 0%' }}
+                        className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                      >
+                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
+                        <div className="flex-grow overflow-hidden">
+                            <YamlDisplay
+                            yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
+                            hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
+                            onSetHoveredSegmentId={setHoveredTaskId}
+                            />
+                        </div>
+                      </div>
+                  </TabsContent>
+                  ))}
+              </div>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
+            {/* File Editor View */}
+            {activeFile ? (
+              <div className="flex flex-col h-full">
+                <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
+                  <h2 className="text-base font-semibold font-code" title={activeFile.path}>{activeFile.path}</h2>
+                  <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full">
+                    <Textarea
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
+                      placeholder={`Content for ${activeFile.path}`}
+                    />
+                  </ScrollArea>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <p>Select a file from the Project Explorer to edit.</p>
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
       <Resizer onMouseDown={(e) => handleMouseDown("actionsPanel", e)} />
 
+      {/* Actions Panel */}
       <div 
         style={{ flex: `0 0 ${actionsPanelWidth}px` }}
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
       >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
         <div className="p-3 space-y-2">
+           <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
+          </Button>
+          <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
+          
+          <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
+            <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
+          </Button>
+          
+          <Separator className="my-2"/>
+
           <Button onClick={handleNewPlaybook} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New Playbook
           </Button>
@@ -1132,11 +917,11 @@ export function AnsibleArchitectLayout() {
             className="hidden"
           />
           <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
-            <Download className="w-3.5 h-3.5 mr-1.5" /> Export YAML
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Playbook YAML
           </Button>
           <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
             <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
-            Copy YAML
+            Copy Playbook YAML
           </Button>
           <Separator className="my-2"/>
           <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
@@ -1171,6 +956,7 @@ export function AnsibleArchitectLayout() {
         </div>
       </div>
 
+      {/* Modals */}
       <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
