@@ -665,7 +665,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const handleAcceptFileOrFolder = (path: string) => {
+  const handleAcceptFolder = (path: string) => {
     if (!project) return;
     const updatedFiles = project.files.map(file => {
       if (file.path.startsWith(path)) {
@@ -724,7 +724,7 @@ export function AnsibleArchitectLayout() {
       zip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir) {
           const promise = zipEntry.async('string').then(content => {
-            files.push({ path: relativePath, content });
+            files.push({ path: relativePath, content, isDefault: false });
           });
           promises.push(promise);
         }
@@ -890,7 +890,7 @@ export function AnsibleArchitectLayout() {
                 onFileSelect={handleFileSelect} 
                 activeFilePath={activeFile?.path || null} 
                 onCreateDefaultProject={handleCreateDefaultProject}
-                onAcceptFolder={handleAcceptFileOrFolder}
+                onAcceptFolder={handleAcceptFolder}
                 onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
             />
           </TabsContent>
@@ -950,11 +950,11 @@ export function AnsibleArchitectLayout() {
                   >
                       <div
                       style={{ flex: `0 0 ${col2Width}px` }}
-                      className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden border-r"
+                      className="min-w-0 bg-card shadow-sm flex flex-col border-r"
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
                         <div 
-                          className="flex-grow overflow-hidden"
+                          className="flex-grow min-h-0"
                         >
                             <TaskList
                             tasks={p.tasks}
@@ -967,7 +967,7 @@ export function AnsibleArchitectLayout() {
                             onDrop={handleDropOnTaskList}
                             onDragOver={handleDragOverTaskList}
                             onDragLeave={handleDragLeaveTaskList}
-                            isDraggingOver={isDraggingOverTaskList}
+                            isDraggingOver={isDraggingOver}
                             />
                         </div>
                       </div>
@@ -1004,7 +1004,7 @@ export function AnsibleArchitectLayout() {
                   </div>
                   <div className="flex items-center gap-2">
                     {activeFile.isDefault && (
-                      <Button size="sm" variant="outline" onClick={() => handleAcceptFileOrFolder(activeFile.path)}>
+                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeFile.path)}>
                         <Check className="w-4 h-4 mr-2" />
                         Accept File
                       </Button>
