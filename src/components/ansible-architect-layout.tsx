@@ -681,6 +681,7 @@ export function AnsibleArchitectLayout() {
       };
 
       setProject(newProject);
+      setActiveFile(null); // Clear active file on new project import
       toast({ title: "Project Imported", description: `Loaded "${newProject.name}" with ${newProject.files.length} files.` });
 
     } catch (error) {
@@ -722,6 +723,71 @@ export function AnsibleArchitectLayout() {
     }
   };
 
+  const handleCreateDefaultProject = () => {
+    const defaultProjectFiles: ProjectFile[] = [
+      // Root
+      { path: 'ansible.cfg', content: '[defaults]\ninventory = ./inventories\nroles_path = ./roles\n' },
+      { path: 'requirements.yml', content: '# collections:\n#   - name: community.general\n' },
+      { path: 'site.yml', content: '- import_playbook: playbooks/webservers.yml\n- import_playbook: playbooks/dbservers.yml\n' },
+      { path: 'README.md', content: '# Ansible Project\n\nThis is a default project structure.\n' },
+      // Inventories
+      { path: 'inventories/production/hosts', content: '[webservers]\nweb1.example.com\n\n[dbservers]\ndb1.example.com\n' },
+      { path: 'inventories/production/group_vars/all.yml', content: '# Variables for all production hosts\n' },
+      { path: 'inventories/production/group_vars/webservers.yml', content: 'http_port: 80\n' },
+      { path: 'inventories/production/host_vars/web1.example.com.yml', content: 'specific_var: value_for_web1\n' },
+      { path: 'inventories/production/host_vars/db1.example.com.yml', content: 'db_version: 14\n' },
+      { path: 'inventories/staging/hosts', content: '[webservers]\nstage-web1.example.com\n' },
+      { path: 'inventories/staging/group_vars/all.yml', content: '# Variables for all staging hosts\n' },
+      { path: 'inventories/staging/host_vars/.gitkeep', content: '' },
+      // Global vars
+      { path: 'group_vars/all.yml', content: '# Global variables applied to all hosts\n' },
+      { path: 'host_vars/localhost.yml', content: 'ansible_connection: local\n' },
+      // Playbooks
+      { path: 'playbooks/webservers.yml', content: '- hosts: webservers\n  roles:\n    - nginx\n' },
+      { path: 'playbooks/dbservers.yml', content: '- hosts: dbservers\n  roles:\n    - common\n' },
+      { path: 'playbooks/includes/common.yml', content: '- name: Common setup task\n  ansible.builtin.debug:\n    msg: "This is a common task"\n' },
+      { path: 'playbooks/includes/hardening.yml', content: '- name: Security hardening task\n  ansible.builtin.debug:\n    msg: "This is a hardening task"\n' },
+      // Roles - common
+      { path: 'roles/common/defaults/main.yml', content: '# Defaults for common role\n' },
+      { path: 'roles/common/files/.gitkeep', content: '' },
+      { path: 'roles/common/handlers/main.yml', content: '# Handlers for common role\n' },
+      { path: 'roles/common/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: A common role for server setup\n  license: license (GPL-2.0-or-later, MIT, etc)\n  min_ansible_version: "2.1"\n' },
+      { path: 'roles/common/tasks/main.yml', content: '- name: Common task from role\n  ansible.builtin.debug:\n    msg: "Hello from the common role!"\n' },
+      { path: 'roles/common/tasks/install.yml', content: '- name: Installation task from common role\n  ansible.builtin.debug:\n    msg: "Installing common packages"\n' },
+      { path: 'roles/common/templates/.gitkeep', content: '' },
+      { path: 'roles/common/tests/test.yml', content: '- hosts: localhost\n  remote_user: root\n  roles:\n    - common\n' },
+      { path: 'roles/common/vars/main.yml', content: '# Variables for common role\n' },
+      // Roles - nginx
+      { path: 'roles/nginx/defaults/main.yml', content: '# Defaults for nginx role\n' },
+      { path: 'roles/nginx/files/.gitkeep', content: '' },
+      { path: 'roles/nginx/handlers/main.yml', content: '- name: restart nginx\n  ansible.builtin.service:\n    name: nginx\n    state: restarted\n' },
+      { path: 'roles/nginx/meta/main.yml', content: 'galaxy_info:\n  author: Your Name\n  description: Installs and configures Nginx\n  license: license (GPL-2.0-or-later, MIT, etc)\n  min_ansible_version: "2.1"\n' },
+      { path: 'roles/nginx/tasks/main.yml', content: '- name: Install Nginx\n  ansible.builtin.package:\n    name: nginx\n    state: present\n' },
+      { path: 'roles/nginx/templates/.gitkeep', content: '' },
+      { path: 'roles/nginx/tests/test.yml', content: '- hosts: localhost\n  remote_user: root\n  roles:\n    - nginx\n' },
+      { path: 'roles/nginx/vars/main.yml', content: '# Variables for nginx role\n' },
+      // Other top-level directories
+      { path: 'library/.gitkeep', content: '' },
+      { path: 'filter_plugins/.gitkeep', content: '' },
+      { path: 'tests/test_site.yml', content: '# Tests for the main site playbook\n' },
+      { path: 'tests/mock_inventory.yml', content: '# Mock inventory for testing\n' },
+      // Collections
+      { path: 'collections/ansible_collections/my_namespace/my_collection/galaxy.yml', content: 'namespace: my_namespace\nname: my_collection\nversion: 1.0.0\n' },
+      { path: 'collections/ansible_collections/my_namespace/my_collection/playbooks/.gitkeep', content: '' },
+      { path: 'collections/ansible_collections/my_namespace/my_collection/plugins/modules/.gitkeep', content: '' },
+      { path: 'collections/ansible_collections/my_namespace/my_collection/roles/.gitkeep', content: '' },
+    ];
+    
+    const newProject: Project = {
+      name: 'Default Ansible Project',
+      files: defaultProjectFiles,
+    };
+    
+    setProject(newProject);
+    setActiveFile(null); // Clear active file
+    toast({ title: "Project Created", description: `Created "${newProject.name}" with ${newProject.files.length} files.` });
+  };
+
 
   if (!isClientReady) {
     return (
@@ -755,7 +821,12 @@ export function AnsibleArchitectLayout() {
             <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
           <TabsContent value="project" className="flex-1 min-h-0">
-             <ProjectExplorer project={project} onFileSelect={handleFileSelect} activeFilePath={activeFile?.path || null} />
+             <ProjectExplorer 
+                project={project} 
+                onFileSelect={handleFileSelect} 
+                activeFilePath={activeFile?.path || null} 
+                onCreateDefaultProject={handleCreateDefaultProject}
+            />
           </TabsContent>
         </Tabs>
       </div>

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { File, Folder, FolderOpen, ChevronsRightLeft } from 'lucide-react';
+import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus } from 'lucide-react';
 import type { Project, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +12,7 @@ interface ProjectExplorerProps {
   project: Project | null;
   onFileSelect: (path: string) => void;
   activeFilePath: string | null;
+  onCreateDefaultProject: () => void;
 }
 
 function buildFileTree(files: { path: string }[]): FileTreeNode[] {
@@ -110,7 +111,7 @@ const TreeNode: React.FC<{
   );
 };
 
-export function ProjectExplorer({ project, onFileSelect, activeFilePath }: ProjectExplorerProps) {
+export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject }: ProjectExplorerProps) {
   const fileTree = React.useMemo(() => {
     if (!project?.files) return [];
     return buildFileTree(project.files);
@@ -121,7 +122,11 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath }: Proje
       <div className="p-4 text-center text-muted-foreground h-full flex flex-col items-center justify-center">
         <ChevronsRightLeft className="w-12 h-12 mx-auto mb-3 opacity-60" />
         <p className="font-medium text-sm">No Project Loaded</p>
-        <p className="text-xs">Use the 'Import Project (ZIP)' action.</p>
+        <p className="text-xs mt-1">Use 'Import Project' or create a default structure.</p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={onCreateDefaultProject}>
+          <FolderPlus className="w-4 h-4 mr-2" />
+          Create Default Project
+        </Button>
       </div>
     );
   }
