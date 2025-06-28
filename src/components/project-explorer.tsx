@@ -36,6 +36,16 @@ function buildFileTree(files: { path: string }[]): FileTreeNode[] {
           children: isLastPart ? undefined : [],
         };
         currentNode.children?.push(childNode);
+      } else if (childNode.type === 'file' && !isLastPart) {
+        // This handles an edge case where a file exists with the same name as a directory path component.
+        // e.g., files are 'a' and 'a/b'. 'a' must be a directory.
+        childNode.type = 'directory';
+        childNode.children = childNode.children || [];
+      }
+      
+      // Move to the next node in the tree for the next part of the path
+      if (childNode.type === 'directory') {
+          currentNode = childNode;
       }
     });
   });
