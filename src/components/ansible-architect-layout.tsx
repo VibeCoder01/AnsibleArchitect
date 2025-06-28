@@ -634,7 +634,8 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleFileSelect = (path: string) => {
-    const file = project?.files.find(f => f.path === path);
+    if (!project) return;
+    const file = project.files.find(f => f.path === path);
     if (file) {
       setActiveFile(file);
       setMainView('editor');
@@ -644,14 +645,48 @@ export function AnsibleArchitectLayout() {
   const handleSaveActiveFile = () => {
     if (project && activeFile) {
       const updatedFiles = project.files.map(f =>
-        f.path === activeFile.path ? { ...f, content: editorContent } : f
+        f.path === activeFile.path ? { ...f, content: editorContent, isDefault: false } : f
       );
       const updatedProject = { ...project, files: updatedFiles };
       setProject(updatedProject);
-      setActiveFile({ ...activeFile, content: editorContent });
-      toast({ title: "File Saved", description: `Changes to ${activeFile.path} have been saved in memory.` });
+      setActiveFile({ ...activeFile, content: editorContent, isDefault: false });
+      toast({ title: "File Saved", description: `Changes to ${activeFile.path} have been saved.` });
     }
   };
+
+  const handleAcceptFileOrFolder = (path: string) => {
+    if (!project) return;
+    const updatedFiles = project.files.map(file => {
+      if (file.path.startsWith(path)) {
+        return { ...file, isDefault: false };
+      }
+      return file;
+    });
+    setProject({ ...project, files: updatedFiles });
+    toast({ title: "Accepted", description: `Default status removed for ${path}` });
+  };
+  
+  const handleDeleteFileOrFolder = (path: string) => {
+    if (!project) return;
+    
+    const updatedFiles = project.files.filter(file => !file.path.startsWith(path));
+    
+    if (updatedFiles.length === project.files.length) {
+      toast({ title: "Not Found", description: "No matching file or folder to delete.", variant: "destructive"});
+      return;
+    }
+
+    setProject({ ...project, files: updatedFiles });
+
+    // If the currently active file was deleted, deactivate it.
+    if (activeFile && activeFile.path.startsWith(path)) {
+      setActiveFile(null);
+      setMainView('designer');
+    }
+
+    toast({ title: "Deleted", description: `Removed ${path} from the project.` });
+  };
+
   
   const handleImportZip = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -724,7 +759,7 @@ export function AnsibleArchitectLayout() {
   };
 
   const handleCreateDefaultProject = () => {
-    const defaultProjectFiles: ProjectFile[] = [
+    const defaultProjectFiles: Omit<ProjectFile, 'isDefault'>[] = [
       // Root
       { path: 'ansible.cfg', content: '[defaults]\ninventory = ./inventories\nroles_path = ./roles\n' },
       { path: 'requirements.yml', content: '# collections:\n#   - name: community.general\n' },
@@ -787,7 +822,7 @@ export function AnsibleArchitectLayout() {
     
     const newProject: Project = {
       name: 'Default Ansible Project',
-      files: defaultProjectFiles,
+      files: defaultProjectFiles.map(file => ({ ...file, isDefault: true })),
     };
     
     setProject(newProject);
@@ -833,6 +868,8 @@ export function AnsibleArchitectLayout() {
                 onFileSelect={handleFileSelect} 
                 activeFilePath={activeFile?.path || null} 
                 onCreateDefaultProject={handleCreateDefaultProject}
+                onAcceptFileOrFolder={handleAcceptFileOrFolder}
+                onDeleteFileOrFolder={handleDeleteFileOrFolder}
             />
           </TabsContent>
         </Tabs>
@@ -937,7 +974,10 @@ export function AnsibleArchitectLayout() {
             {activeFile ? (
               <div className="flex flex-col h-full">
                 <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
-                  <h2 className="text-base font-semibold font-code" title={activeFile.path}>{activeFile.path}</h2>
+                  <div className="flex items-center gap-2">
+                     <h2 className="text-base font-semibold font-code" title={activeFile.path}>{activeFile.path}</h2>
+                     {activeFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
+                  </div>
                   <Button size="sm" onClick={handleSaveActiveFile}>Save Changes</Button>
                 </div>
                 <div className="flex-1 min-h-0">
@@ -1114,5 +1154,3 @@ export function AnsibleArchitectLayout() {
     </div>
   );
 }
-
-    

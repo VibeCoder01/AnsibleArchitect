@@ -52,6 +52,7 @@ export interface PlaybookState {
 export interface ProjectFile {
   path: string;
   content: string;
+  isDefault?: boolean;
 }
 
 export interface Project {
@@ -64,4 +65,5 @@ export interface FileTreeNode {
   path: string;
   type: 'file' | 'directory';
   children?: FileTreeNode[];
+  isDefault?: boolean;
 }
