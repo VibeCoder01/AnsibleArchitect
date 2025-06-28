@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus } from 'lucide-react';
+import { File, Folder, FolderOpen, ChevronsRightLeft, FolderPlus, ListCollapse, ListTree, List as ListIcon } from 'lucide-react';
 import type { Project, FileTreeNode } from "@/types/ansible";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,6 +47,11 @@ function buildFileTree(files: Project['files']): FileTreeNode[] {
       
       if (isLastPart && childNode.type === 'file') {
         childNode.isDefault = file.isDefault;
+      } else {
+        // Inherit default status upwards if any child is default
+         if (file.isDefault) {
+            childNode.isDefault = true;
+         }
       }
       
       if (childNode.type === 'directory') {
@@ -63,7 +68,8 @@ function buildFileTree(files: Project['files']): FileTreeNode[] {
           node.isDefault = true;
           anyChildIsDefault = true;
         } else {
-          node.isDefault = false;
+          node.isDefault = node.children.some(c => c.isDefault);
+          if (node.isDefault) anyChildIsDefault = true;
         }
       } else if (node.type === 'file' && node.isDefault) {
         anyChildIsDefault = true;
@@ -103,14 +109,15 @@ const TreeNode: React.FC<{
   activeFilePath: string | null;
   onAcceptFolder: (path: string) => void;
   onDeleteFolder: (path: string) => void;
-}> = ({ node, level, onFileSelect, activeFilePath, onAcceptFolder, onDeleteFolder }) => {
-  const [isExpanded, setIsExpanded] = React.useState(level < 2);
+  isExpanded: boolean;
+  onToggleExpand: (path: string) => void;
+}> = ({ node, level, onFileSelect, activeFilePath, onAcceptFolder, onDeleteFolder, isExpanded, onToggleExpand }) => {
 
-  const handleNodeClick = (e: React.MouseEvent) => {
+  const handleNodeClick = () => {
     if (node.type === 'file') {
       onFileSelect(node.path);
     } else {
-      setIsExpanded(!isExpanded);
+      onToggleExpand(node.path);
     }
   };
 
@@ -148,10 +155,10 @@ const TreeNode: React.FC<{
             {node.isDefault && (
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div
-                            role="button"
+                        <button
                             onClick={handleAcceptClick}
-                            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600"
+                            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
+                            aria-label="Accept default folder"
                         />
                     </TooltipTrigger>
                     <TooltipContent>
@@ -161,10 +168,10 @@ const TreeNode: React.FC<{
             )}
             <Tooltip>
                 <TooltipTrigger asChild>
-                     <div
-                        role="button"
+                     <button
                         onClick={handleDeleteClick}
-                        className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600"
+                        className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
+                        aria-label="Delete folder"
                     />
                 </TooltipTrigger>
                 <TooltipContent>
@@ -186,6 +193,8 @@ const TreeNode: React.FC<{
                 activeFilePath={activeFilePath} 
                 onAcceptFolder={onAcceptFolder}
                 onDeleteFolder={onDeleteFolder}
+                isExpanded={isExpanded}
+                onToggleExpand={onToggleExpand}
             />
           ))}
         </div>
@@ -201,6 +210,88 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
     return buildFileTree(project.files);
   }, [project]);
 
+  const [expandedNodes, setExpandedNodes] = React.useState(new Set<string>());
+  const [customExpandedNodes, setCustomExpandedNodes] = React.useState(new Set<string>());
+  const [expandMode, setExpandMode] = React.useState<'custom' | 'all' | 'none'>('custom');
+
+  React.useEffect(() => {
+    if (fileTree.length > 0) {
+      const initialNodes = new Set<string>();
+      const setDefaultExpansion = (nodes: FileTreeNode[], level: number) => {
+        if (level >= 1) return; // Only expand top-level
+        nodes.forEach(node => {
+          if (node.type === 'directory') {
+            initialNodes.add(node.path);
+            if (node.children) {
+              setDefaultExpansion(node.children, level + 1);
+            }
+          }
+        });
+      };
+      setDefaultExpansion(fileTree, 0);
+      setExpandedNodes(initialNodes);
+      setCustomExpandedNodes(initialNodes);
+      setExpandMode('custom');
+    }
+  }, [fileTree]);
+
+  const getAllDirectoryPaths = React.useCallback((nodes: FileTreeNode[]): string[] => {
+    const paths: string[] = [];
+    const traverse = (nodesToScan: FileTreeNode[]) => {
+      nodesToScan.forEach(node => {
+        if (node.type === 'directory') {
+          paths.push(node.path);
+          if (node.children) {
+            traverse(node.children);
+          }
+        }
+      });
+    };
+    traverse(nodes);
+    return paths;
+  }, []);
+
+  const handleToggleExpandAll = () => {
+    if (expandMode === 'custom') { // custom -> all
+      setExpandMode('all');
+      setExpandedNodes(new Set(getAllDirectoryPaths(fileTree)));
+    } else if (expandMode === 'all') { // all -> none
+      setExpandMode('none');
+      setExpandedNodes(new Set());
+    } else { // none -> custom
+      setExpandMode('custom');
+      setExpandedNodes(customExpandedNodes);
+    }
+  };
+  
+  const handleNodeToggle = (path: string) => {
+    setExpandMode('custom');
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(path)) {
+      newExpanded.delete(path);
+    } else {
+      newExpanded.add(path);
+    }
+    setExpandedNodes(newExpanded);
+    setCustomExpandedNodes(newExpanded);
+  };
+
+  const renderTree = (nodes: FileTreeNode[], level: number): React.ReactNode => {
+    return nodes.map(node => (
+      <TreeNode
+        key={node.path}
+        node={node}
+        level={level}
+        onFileSelect={onFileSelect}
+        activeFilePath={activeFilePath}
+        onAcceptFolder={onAcceptFolder}
+        onDeleteFolder={onDeleteFolder}
+        isExpanded={expandedNodes.has(node.path)}
+        onToggleExpand={handleNodeToggle}
+      />
+    ));
+  };
+
   if (!project) {
     return (
       <div className="p-4 text-center text-muted-foreground h-full flex flex-col items-center justify-center">
@@ -214,26 +305,29 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
       </div>
     );
   }
+  
+  const ToggleIcon = expandMode === 'all' ? ListCollapse : expandMode === 'none' ? ListIcon : ListTree;
+  const tooltipText = expandMode === 'all' ? "Collapse All" : expandMode === 'none' ? "Restore Last View" : "Expand All";
 
   return (
     <TooltipProvider>
       <div className="h-full flex flex-col">
-        <div className="p-3 border-b flex-shrink-0">
+        <div className="p-3 border-b flex-shrink-0 flex items-center justify-between">
           <h3 className="font-semibold text-base truncate" title={project.name}>{project.name}</h3>
+           <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={handleToggleExpandAll}>
+                        <ToggleIcon className="w-4 h-4" />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{tooltipText}</p>
+                </TooltipContent>
+            </Tooltip>
         </div>
-        <ScrollArea className="flex-grow">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-2">
-            {fileTree.map(node => (
-              <TreeNode
-                key={node.path}
-                node={node}
-                level={0}
-                onFileSelect={onFileSelect}
-                activeFilePath={activeFilePath}
-                onAcceptFolder={onAcceptFolder}
-                onDeleteFolder={onDeleteFolder}
-              />
-            ))}
+            {renderTree(fileTree, 0)}
           </div>
         </ScrollArea>
       </div>

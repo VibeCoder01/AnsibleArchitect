@@ -950,14 +950,16 @@ export function AnsibleArchitectLayout() {
                   >
                       <div
                       style={{ flex: `0 0 ${col2Width}px` }}
-                      onDrop={handleDropOnTaskList}
-                      onDragOver={handleDragOverTaskList}
-                      onDragLeave={handleDragLeaveTaskList}
-                      className={`min-w-0 bg-card shadow-sm flex flex-col overflow-hidden transition-colors ${isDraggingOverTaskList ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'} border-r`} 
-                      aria-dropeffect="copy"
+                      className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden border-r"
                       >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <div className="flex-grow overflow-auto p-3">
+                        <div 
+                          className={`flex-grow overflow-auto p-3 transition-colors ${isDraggingOverTaskList ? 'bg-primary/5' : ''}`}
+                          onDrop={handleDropOnTaskList}
+                          onDragOver={handleDragOverTaskList}
+                          onDragLeave={handleDragLeaveTaskList}
+                          aria-dropeffect="copy"
+                        >
                             <TaskList
                             tasks={p.tasks}
                             onUpdateTask={updateTaskInActivePlaybook}
@@ -1040,8 +1042,7 @@ export function AnsibleArchitectLayout() {
         className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col overflow-hidden"
       >
         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
-        <div className="flex-1 overflow-auto">
-          <ScrollArea className="h-full w-full">
+        <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 space-y-2 whitespace-nowrap">
               <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1">
                 <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
@@ -1106,8 +1107,7 @@ export function AnsibleArchitectLayout() {
               </Button>
               <Separator className="my-2"/>
             </div>
-          </ScrollArea>
-        </div>
+        </ScrollArea>
       </div>
 
       {/* Modals */}
