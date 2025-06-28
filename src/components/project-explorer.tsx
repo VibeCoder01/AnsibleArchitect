@@ -221,21 +221,21 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
         <div className="p-3 border-b flex-shrink-0">
           <h3 className="font-semibold text-base truncate" title={project.name}>{project.name}</h3>
         </div>
-        <div className="flex-grow overflow-auto">
-           <ScrollArea className="h-full w-full">
-              {fileTree.map(node => (
-                <TreeNode
-                  key={node.path}
-                  node={node}
-                  level={0}
-                  onFileSelect={onFileSelect}
-                  activeFilePath={activeFilePath}
-                  onAcceptFolder={onAcceptFolder}
-                  onDeleteFolder={onDeleteFolder}
-                />
-              ))}
-          </ScrollArea>
-        </div>
+        <ScrollArea className="flex-grow">
+          <div className="p-2">
+            {fileTree.map(node => (
+              <TreeNode
+                key={node.path}
+                node={node}
+                level={0}
+                onFileSelect={onFileSelect}
+                activeFilePath={activeFilePath}
+                onAcceptFolder={onAcceptFolder}
+                onDeleteFolder={onDeleteFolder}
+              />
+            ))}
+          </div>
+        </ScrollArea>
       </div>
     </TooltipProvider>
   );

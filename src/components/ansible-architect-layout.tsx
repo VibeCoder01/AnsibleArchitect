@@ -882,21 +882,17 @@ export function AnsibleArchitectLayout() {
             <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
           </TabsList>
           <TabsContent value="modules" className="flex-1 min-h-0">
-            <div className="flex-grow overflow-auto">
-              <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
-            </div>
+            <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
           </TabsContent>
           <TabsContent value="project" className="flex-1 min-h-0">
-             <div className="flex-grow overflow-auto">
-               <ProjectExplorer 
-                  project={project} 
-                  onFileSelect={handleFileSelect} 
-                  activeFilePath={activeFile?.path || null} 
-                  onCreateDefaultProject={handleCreateDefaultProject}
-                  onAcceptFolder={handleAcceptFileOrFolder}
-                  onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
-              />
-            </div>
+            <ProjectExplorer 
+                project={project} 
+                onFileSelect={handleFileSelect} 
+                activeFilePath={activeFile?.path || null} 
+                onCreateDefaultProject={handleCreateDefaultProject}
+                onAcceptFolder={handleAcceptFileOrFolder}
+                onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
+            />
           </TabsContent>
         </Tabs>
       </div>
