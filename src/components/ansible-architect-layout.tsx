@@ -31,6 +31,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
   ssr: false,
@@ -558,7 +566,7 @@ export function AnsibleArchitectLayout() {
     toast({ title: "New Playbook", description: `"${newPBook.name}" created and activated.`});
   };
 
-  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
+  const handleClosePlaybook = (playbookIdToClose: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const playbookToClose = playbooks.find(p => p.id === playbookIdToClose);
 
@@ -587,7 +595,7 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
+  const openRenameModal = (playbookId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setRenamingPlaybookId(playbookId);
     setTempPlaybookName(currentName);
@@ -907,88 +915,93 @@ export function AnsibleArchitectLayout() {
              <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeFile}>Editor</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
-             {/* Playbook Designer View */}
-            <Tabs
-              value={activePlaybookId || ""}
-              onValueChange={setActivePlaybookId}
-              className="flex flex-col flex-1 min-w-0 min-h-0" 
-            >
-              <div className="flex items-center border-b bg-card">
-                <TabsList className="bg-card p-1 h-auto rounded-none">
-                  {playbooks.map(p => (
-                    <TabsTrigger
-                      key={p.id}
-                      value={p.id}
-                      className="text-xs px-2 py-1.5 h-auto data-[state=active]:bg-primary/10 data-[state=active]:text-primary relative group"
+          <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden flex flex-col">
+            <div className="flex items-center p-2 border-b bg-card flex-shrink-0">
+                <Select value={activePlaybookId || ""} onValueChange={setActivePlaybookId}>
+                    <SelectTrigger className="w-[250px] h-9 text-sm font-medium">
+                        <SelectValue placeholder="Select a playbook" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {playbooks.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                {activePlaybook && (
+                <>
+                    <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1.5 w-7 h-7"
+                    onClick={(e) => openRenameModal(activePlaybook.id, activePlaybook.name, e)}
                     >
-                      <span className="max-w-[120px] truncate" title={p.name}>{p.name}</span>
-                      <Button asChild variant="ghost" size="icon" className="w-5 h-5 ml-1.5 opacity-50 group-hover:opacity-100 hover:bg-accent/20" aria-label="Rename playbook">
-                          <span role="button" tabIndex={0} onClick={(e) => openRenameModal(p.id, p.name, e)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRenameModal(p.id, p.name, e); }}}>
-                            <Edit2 className="w-3 h-3" />
-                          </span>
-                      </Button>
-                      <Button asChild variant="ghost" size="icon" className="w-5 h-5 ml-0.5 opacity-50 group-hover:opacity-100 hover:bg-destructive/20" aria-label="Close playbook">
-                          <span role="button" tabIndex={0} onClick={(e) => handleClosePlaybook(p.id, e)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClosePlaybook(p.id, e); }}}>
-                            <X className="w-3 h-3" />
-                          </span>
-                      </Button>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                <Button variant="ghost" size="icon" className="ml-1 w-7 h-7" onClick={handleNewPlaybook} aria-label="New Playbook">
-                  <FilePlus className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              <div className="flex-grow min-h-0 relative overflow-hidden">
-                  {playbooks.map(p => (
-                  <TabsContent
-                      key={p.id}
-                      value={p.id}
-                      className="absolute inset-0 flex data-[state=inactive]:hidden mt-0"
-                  >
-                      <div
+                    <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-7 h-7"
+                    onClick={(e) => handleClosePlaybook(activePlaybook.id, e)}
+                    disabled={playbooks.length <= 1}
+                    >
+                    <X className="w-4 h-4" />
+                    </Button>
+                </>
+                )}
+            </div>
+
+            <div className="flex-grow min-h-0 flex">
+                {activePlaybook ? (
+                <>
+                    <div
                         style={{ flex: `0 0 ${col2Width}px` }}
                         className="min-w-0 bg-card shadow-sm flex flex-col border-r"
-                        onDrop={handleDropOnTaskList}
-                        onDragOver={handleDragOverTaskList}
-                        onDragLeave={handleDragLeaveTaskList}
-                      >
+                    >
                         <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Playbook Tasks</h2>
-                        <div className="flex-grow min-h-0">
+                        <div
+                            className="flex-grow min-h-0"
+                            onDrop={handleDropOnTaskList}
+                            onDragOver={handleDragOverTaskList}
+                            onDragLeave={handleDragLeaveTaskList}
+                        >
                             <TaskList
-                              tasks={p.tasks}
-                              onUpdateTask={updateTaskInActivePlaybook}
-                              onDeleteTask={deleteTaskInActivePlaybook}
-                              onMoveTask={moveTaskInActivePlaybook}
-                              definedRoles={definedRoles}
-                              hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                              onSetHoveredTaskId={setHoveredTaskId}
-                              isDraggingOver={isDraggingOverTaskList}
+                                tasks={activePlaybook.tasks}
+                                onUpdateTask={updateTaskInActivePlaybook}
+                                onDeleteTask={deleteTaskInActivePlaybook}
+                                onMoveTask={moveTaskInActivePlaybook}
+                                definedRoles={definedRoles}
+                                hoveredTaskId={hoveredTaskId}
+                                onSetHoveredTaskId={setHoveredTaskId}
+                                isDraggingOver={isDraggingOverTaskList}
                             />
                         </div>
-                      </div>
+                    </div>
 
-                      <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+                    <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
 
-                      <div
-                        style={{ flex: '1 1 0%' }}
-                        className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
-                      >
-                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({p.name})</h2>
-                        <div className="flex-grow overflow-hidden">
-                            <YamlDisplay
-                            yamlSegments={p.id === activePlaybookId ? yamlSegments : generatePlaybookYamlSegments(p.tasks, p.name)}
-                            hoveredTaskId={p.id === activePlaybookId ? hoveredTaskId : null}
-                            onSetHoveredSegmentId={setHoveredTaskId}
-                            />
-                        </div>
-                      </div>
-                  </TabsContent>
-                  ))}
-              </div>
-            </Tabs>
+                    <div
+                    style={{ flex: '1 1 0%' }}
+                    className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                    >
+                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({activePlaybook.name})</h2>
+                    <div className="flex-grow overflow-hidden">
+                        <YamlDisplay
+                        yamlSegments={yamlSegments}
+                        hoveredTaskId={hoveredTaskId}
+                        onSetHoveredSegmentId={setHoveredTaskId}
+                        />
+                    </div>
+                    </div>
+                </>
+                ) : (
+                <div className="flex items-center justify-center w-full text-muted-foreground">
+                    <p>No playbook selected. Create one to get started.</p>
+                </div>
+                )}
+            </div>
           </TabsContent>
 
           <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">

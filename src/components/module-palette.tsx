@@ -93,8 +93,8 @@ export function ModulePalette({ onAddTaskFromPalette }: ModulePaletteProps) {
                             <div className="flex items-center space-x-2 min-w-0">
                               <IconComponent className="w-5 h-5 text-primary flex-shrink-0" />
                               <div className="min-w-0">
-                                <h4 className="font-semibold text-sm text-card-foreground whitespace-nowrap" title={module.name}>{module.name}</h4>
-                                <p className="text-xs text-muted-foreground leading-tight whitespace-nowrap" title={module.description}>{module.description}</p>
+                                <h4 className="font-semibold text-sm text-card-foreground" title={module.name}>{module.name}</h4>
+                                <p className="text-xs text-muted-foreground leading-tight" title={module.description}>{module.description}</p>
                               </div>
                             </div>
                             <Button 
