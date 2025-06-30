@@ -781,6 +781,7 @@ export function AnsibleArchitectLayout() {
       await Promise.all(promises);
 
       const newProject: Project = {
+        id: uuidv4(),
         name: file.name.replace(/\.zip$/, ''),
         files,
       };
@@ -893,6 +894,7 @@ export function AnsibleArchitectLayout() {
     ];
     
     const newProject: Project = {
+      id: uuidv4(),
       name: 'Default Ansible Project',
       files: defaultProjectFiles.map(file => ({ ...file, isDefault: true })),
     };
@@ -1062,12 +1064,12 @@ export function AnsibleArchitectLayout() {
             </div>
             <div 
               className="flex-grow min-h-0 flex"
+              onDrop={handleDropOnTaskList}
+              onDragOver={handleDragOverTaskList}
+              onDragLeave={handleDragLeaveTaskList}
             >
               <div
                   className="w-full h-full flex"
-                  onDrop={handleDropOnTaskList}
-                  onDragOver={handleDragOverTaskList}
-                  onDragLeave={handleDragLeaveTaskList}
                 >
                 {activeDesignerFile ? (
                 <>

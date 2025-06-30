@@ -296,7 +296,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
       setCustomExpandedNodes(initialNodes);
       setExpandMode('custom');
     }
-  }, [project]);
+  }, [project?.id]);
 
   const getAllDirectoryPaths = React.useCallback((nodes: FileTreeNode[]): string[] => {
     const paths: string[] = [];
