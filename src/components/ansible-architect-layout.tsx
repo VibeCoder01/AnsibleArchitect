@@ -904,6 +904,45 @@ export function AnsibleArchitectLayout() {
     toast({ title: "Project Created", description: `Created "${newProject.name}" with ${defaultProjectFiles.length} files.` });
   };
 
+  const handleMoveItem = (sourcePath: string, destinationFolderPath: string) => {
+    if (!project) return;
+
+    if (destinationFolderPath.startsWith(sourcePath + '/')) {
+        toast({ title: "Invalid Move", description: "Cannot move a folder into itself.", variant: "destructive"});
+        return;
+    }
+    
+    const sourceBaseName = sourcePath.split('/').pop();
+    if (!sourceBaseName) return;
+
+    const newFiles = project.files.map(file => {
+        if (file.path.startsWith(sourcePath)) {
+            const tail = file.path.substring(sourcePath.length);
+            const newPath = `${destinationFolderPath}/${sourceBaseName}${tail}`;
+            
+            if (file.path === activeDesignerFileId) {
+                setActiveDesignerFileId(newPath);
+            }
+            if (file.path === activeEditorFile?.path) {
+                setActiveEditorFile(prev => prev ? { ...prev, path: newPath } : null);
+            }
+            setDesignerFiles(prevFiles => prevFiles.map(df => {
+                if (df.id === file.path) {
+                    return {...df, id: newPath};
+                }
+                return df;
+            }));
+
+            return { ...file, path: newPath };
+        }
+        return file;
+    });
+    
+    setProject({ ...project, files: newFiles });
+    toast({ title: "Item Moved", description: `Moved "${sourceBaseName}" to "${destinationFolderPath}".` });
+  };
+
+
   const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
   const activeFilePath = mainView === 'editor' ? activeEditorFile?.path ?? null : activeDesignerFileId;
 
@@ -946,6 +985,7 @@ export function AnsibleArchitectLayout() {
                 onCreateDefaultProject={handleCreateDefaultProject}
                 onAcceptFolder={handleAcceptFolder}
                 onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
+                onMoveItem={handleMoveItem}
             />
           </TabsContent>
         </Tabs>
@@ -1022,10 +1062,13 @@ export function AnsibleArchitectLayout() {
             </div>
             <div 
               className="flex-grow min-h-0 flex"
-              onDrop={handleDropOnTaskList}
-              onDragOver={handleDragOverTaskList}
-              onDragLeave={handleDragLeaveTaskList}
             >
+              <div
+                  className="w-full h-full flex"
+                  onDrop={handleDropOnTaskList}
+                  onDragOver={handleDragOverTaskList}
+                  onDragLeave={handleDragLeaveTaskList}
+                >
                 {activeDesignerFile ? (
                 <>
                     <div
@@ -1068,6 +1111,7 @@ export function AnsibleArchitectLayout() {
                     <p>No file selected. Create one or open a YAML file from the project.</p>
                 </div>
                 )}
+                </div>
             </div>
           </TabsContent>
 

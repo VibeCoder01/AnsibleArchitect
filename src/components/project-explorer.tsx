@@ -16,6 +16,7 @@ interface ProjectExplorerProps {
   onCreateDefaultProject: () => void;
   onAcceptFolder: (path: string) => void;
   onDeleteFolder: (path: string) => void;
+  onMoveItem: (sourcePath: string, destinationFolderPath: string) => void;
 }
 
 function buildFileTree(files: Project['files']): FileTreeNode[] {
@@ -111,6 +112,9 @@ interface TreeNodeProps {
   onDeleteFolder: (path: string) => void;
   expandedNodes: Set<string>;
   onToggleExpand: (path: string) => void;
+  onMoveItem: (sourcePath: string, destinationFolderPath: string) => void;
+  onDragEnter: (path: string | null) => void;
+  isDragOver: boolean;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -122,6 +126,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onDeleteFolder,
   expandedNodes,
   onToggleExpand,
+  onMoveItem,
+  onDragEnter,
+  isDragOver,
 }) => {
   const isExpanded = expandedNodes.has(node.path);
 
@@ -143,11 +150,53 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     onDeleteFolder(node.path);
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', node.path);
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (node.type === 'directory') {
+      onDragEnter(node.path);
+    }
+  };
+  
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDragEnter(null);
+    
+    const dropTargetType = node.type;
+    const dropTargetPath = dropTargetType === 'directory' ? node.path : node.path.substring(0, node.path.lastIndexOf('/'));
+    
+    if (dropTargetPath) {
+        const sourcePath = e.dataTransfer.getData('text/plain');
+        if (sourcePath && sourcePath !== dropTargetPath && !dropTargetPath.startsWith(sourcePath + '/')) {
+            onMoveItem(sourcePath, dropTargetPath);
+        }
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDragEnter(null);
+  };
+
+
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
   const isActive = node.path === activeFilePath;
 
   return (
-    <div className="relative group/item">
+    <div
+      className={cn("group/item", isDragOver && node.type === 'directory' && "bg-primary/10 ring-1 ring-primary rounded-md")}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragLeave={handleDragLeave}
+    >
       <div
         style={{ paddingLeft: `${level * 1}rem` }}
         className={cn(
@@ -156,6 +205,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           node.isDefault && !isActive && "text-destructive"
         )}
         onClick={handleNodeClick}
+        draggable
+        onDragStart={handleDragStart}
       >
         <div className="flex items-center space-x-2 min-w-0">
           <Icon className={cn("w-4 h-4 flex-shrink-0", node.type === 'directory' ? 'text-primary' : (node.isDefault ? 'text-destructive' : 'text-foreground'))} />
@@ -211,6 +262,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               onDeleteFolder={onDeleteFolder}
               expandedNodes={expandedNodes}
               onToggleExpand={onToggleExpand}
+              onMoveItem={onMoveItem}
+              onDragEnter={onDragEnter}
+              isDragOver={isDragOver}
             />
           ))}
         </div>
@@ -220,7 +274,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 };
 
 
-export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFolder, onDeleteFolder }: ProjectExplorerProps) {
+export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreateDefaultProject, onAcceptFolder, onDeleteFolder, onMoveItem }: ProjectExplorerProps) {
   const fileTree = React.useMemo(() => {
     if (!project?.files) return [];
     return buildFileTree(project.files);
@@ -229,6 +283,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
   const [expandedNodes, setExpandedNodes] = React.useState(new Set<string>());
   const [customExpandedNodes, setCustomExpandedNodes] = React.useState(new Set<string>());
   const [expandMode, setExpandMode] = React.useState<'custom' | 'all' | 'none'>('custom');
+  const [dragOverPath, setDragOverPath] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (fileTree.length > 0) {
@@ -294,6 +349,10 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
     });
   };
 
+  const handleDragEnter = (path: string | null) => {
+    setDragOverPath(path);
+  };
+
   const renderTree = (nodes: FileTreeNode[], level: number): React.ReactNode => {
     return nodes.map(node => (
       <TreeNode
@@ -306,6 +365,9 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
         onDeleteFolder={onDeleteFolder}
         expandedNodes={expandedNodes}
         onToggleExpand={handleNodeToggle}
+        onMoveItem={onMoveItem}
+        onDragEnter={handleDragEnter}
+        isDragOver={dragOverPath === node.path}
       />
     ));
   };
@@ -344,7 +406,7 @@ export function ProjectExplorer({ project, onFileSelect, activeFilePath, onCreat
             </Tooltip>
         </div>
         <ScrollArea className="flex-1 min-h-0">
-          <div className="p-2">
+          <div className="p-2" onDragLeave={() => setDragOverPath(null)}>
             {renderTree(fileTree, 0)}
           </div>
         </ScrollArea>
