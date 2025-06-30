@@ -147,8 +147,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const isActive = node.path === activeFilePath;
 
   return (
-    <div style={{ paddingLeft: `${level * 1}rem` }} className="relative group/item">
+    <div className="relative group/item">
       <div
+        style={{ paddingLeft: `${level * 1}rem` }}
         className={cn(
           "flex items-center justify-between space-x-2 py-1.5 px-2 rounded-md cursor-pointer text-sm whitespace-nowrap",
           isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
