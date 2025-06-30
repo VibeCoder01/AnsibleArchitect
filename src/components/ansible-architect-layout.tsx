@@ -969,8 +969,8 @@ export function AnsibleArchitectLayout() {
       });
     }
   
-    // 2. Missing site.yml
-    if (!filePaths.some(p => ['site.yml', 'main.yml', 'playbook.yml'].includes(p))) {
+    // 2. Missing site.yml or equivalent root playbook
+    if (!filePaths.some(p => ['site.yml', 'main.yml', 'playbook.yml'].includes(p.split('/').pop() || ''))) {
       issues.push({
         category: "Playbook Organisation",
         error: "No site.yml or root-level entrypoint",
@@ -996,14 +996,29 @@ export function AnsibleArchitectLayout() {
         }
       }
     }
-  
-    // 5, 8, 10. File content checks
-    const secretRegex = new RegExp(`(password|token|secret|api_key|private_key):\\s*['"]?(.+)['"]?`, 'i');
+    
+    // Regex for IP addresses
+    const ipRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
+    // Regex for plaintext secrets
+    const secretRegex = /(password|token|secret|api_key|private_key):\s*['"]?(.+)['"]?/i;
 
     for (const file of files) {
+      // 6. Hardcoded IPs (outside of vars/inventory files)
+      if (file.path.endsWith('.yml') && !file.path.startsWith('inventories/') && !file.path.startsWith('group_vars/') && !file.path.startsWith('host_vars/')) {
+        if (ipRegex.test(file.content)) {
+          issues.push({
+            category: "Inventory",
+            error: "Potential hardcoded IP address found",
+            why: "Hardcoding IPs reduces portability. Use inventory variables instead.",
+            path: file.path,
+          });
+        }
+      }
+
       if (file.path.endsWith('.yml') || file.path.endsWith('.yaml')) {
         let parsedYamlDocs: any[];
         try {
+          // 8. Invalid or unlinted YAML
           parsedYamlDocs = yaml.loadAll(file.content);
         } catch (e) {
           issues.push({
@@ -1025,42 +1040,56 @@ export function AnsibleArchitectLayout() {
             });
         }
 
-        // 10. Absolute paths in copy/template/script
+        // 10. Non-portable paths
         for (const doc of parsedYamlDocs) {
             if (!doc) continue;
 
-            const findTasks = (obj: any): any[] => {
-                if (Array.isArray(obj)) return obj;
-                if (typeof obj === 'object' && obj !== null) {
-                    if (Array.isArray(obj.tasks)) return obj.tasks;
-                    if (Array.isArray(obj.pre_tasks)) return obj.pre_tasks;
-                    if (Array.isArray(obj.post_tasks)) return obj.post_tasks;
-                }
-                return [];
-            };
+            const checkTasksRecursively = (taskList: any[]) => {
+              if (!Array.isArray(taskList)) return;
 
-            const tasks = findTasks(doc);
-            if (tasks.length > 0) {
-              tasks.forEach(task => {
+              taskList.forEach(task => {
                 if (!task || typeof task !== 'object') return;
-                const moduleKey = Object.keys(task).find(k => k.includes('.copy') || k.includes('.template') || k.includes('.script'));
-                if (moduleKey) {
-                  const params = task[moduleKey];
-                  if (params && typeof params === 'object') {
-                    for (const paramKey of ['src', 'dest', 'cmd']) {
-                      const pathValue = params[paramKey];
-                      if (typeof pathValue === 'string' && pathValue.startsWith('/') && !pathValue.startsWith('/dev/')) {
+                
+                // Recurse into nested task structures
+                if (task.block) checkTasksRecursively(Array.isArray(task.block) ? task.block : []);
+                if (task.rescue) checkTasksRecursively(Array.isArray(task.rescue) ? task.rescue : []);
+                if (task.always) checkTasksRecursively(Array.isArray(task.always) ? task.always : []);
+
+                const checkPath = (moduleName: string, pathValue: any) => {
+                    if (typeof pathValue === 'string' && pathValue.startsWith('/') && !pathValue.startsWith('/dev/')) {
                         issues.push({
                             category: "Non-portable paths",
-                            error: `Absolute path used in module "${moduleKey}"`,
-                            why: "Breaks portability. Use relative paths or variables like '{{ playbook_dir }}'.",
+                            error: `Absolute path used in module "${moduleName}"`,
+                            why: `Using an absolute source path like '${pathValue}' breaks portability. Use paths relative to the role or playbook.`,
                             path: file.path,
                         });
-                      }
                     }
-                  }
+                };
+
+                // Check for ansible.builtin.copy's 'src'
+                if (task['ansible.builtin.copy'] && task['ansible.builtin.copy'].src) {
+                    checkPath('ansible.builtin.copy', task['ansible.builtin.copy'].src);
+                }
+
+                // Check for ansible.builtin.template's 'src'
+                if (task['ansible.builtin.template'] && task['ansible.builtin.template'].src) {
+                    checkPath('ansible.builtin.template', task['ansible.builtin.template'].src);
+                }
+
+                // Check for ansible.builtin.script's path
+                if (task['ansible.builtin.script']) {
+                    checkPath('ansible.builtin.script', task['ansible.builtin.script']);
                 }
               });
+            };
+
+            if (Array.isArray(doc)) {
+              checkTasksRecursively(doc);
+            } else if (typeof doc === 'object' && doc !== null) {
+              checkTasksRecursively(doc.tasks || []);
+              checkTasksRecursively(doc.pre_tasks || []);
+              checkTasksRecursively(doc.post_tasks || []);
+              checkTasksRecursively(doc.handlers || []);
             }
         }
       }
@@ -1072,7 +1101,7 @@ export function AnsibleArchitectLayout() {
         issues.push({
           category: "Variable structure",
           error: "No use of group_vars/ or host_vars/",
-          why: "Centralizing variables in group_vars/ or host_vars/ improves structure.",
+          why: "Centralizing variables in group_vars/ or host_vars/ improves structure and reusability over playbook-level 'vars'.",
           path: "Project Root",
         });
       }
