@@ -623,20 +623,83 @@ export function AnsibleArchitectLayout() {
     }
   };
 
-  const openRenameModal = (fileId: string, currentName: string, event: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
+  const openRenameModal = (fileId: string, currentName: string, event?: StoppableEvent | React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement> | React.MouseEvent<HTMLButtonElement>) => {
+    event?.stopPropagation();
     setRenamingFileId(fileId);
     setTempFileName(currentName);
     setIsRenameModalOpen(true);
   };
 
   const handleRenameFile = () => {
-    if (!renamingFileId || tempFileName.trim() === "") { 
-      toast({title: "Error", description: "File name cannot be empty.", variant: "destructive"});
+    if (!renamingFileId || !tempFileName.trim()) {
+      toast({ title: "Error", description: "File name cannot be empty.", variant: "destructive" });
       return;
     }
-    setDesignerFiles(prev => prev.map(p => p.id === renamingFileId ? {...p, name: tempFileName.trim()} : p));
-    toast({title: "File Renamed", description: `File renamed to "${tempFileName.trim()}".`});
+
+    const oldPath = renamingFileId;
+    const newBaseName = tempFileName.trim();
+
+    if (newBaseName.includes('/')) {
+        toast({ title: "Invalid Name", description: "File name cannot contain slashes.", variant: "destructive" });
+        return;
+    }
+    
+    const pathParts = oldPath.split('/');
+    pathParts.pop();
+    const parentDirectory = pathParts.join('/');
+    const newPath = parentDirectory ? `${parentDirectory}/${newBaseName}` : newBaseName;
+
+    if (oldPath === newPath) {
+        setIsRenameModalOpen(false);
+        setRenamingFileId(null);
+        setTempFileName("");
+        return;
+    }
+
+    if (project) {
+      if (project.files.some(f => f.path === newPath)) {
+        toast({ title: "Rename Failed", description: `An item named "${newBaseName}" already exists.`, variant: "destructive" });
+        return;
+      }
+
+      const updatedFiles = project.files.map(file => {
+        if (file.path === oldPath || file.path.startsWith(oldPath + '/')) {
+          const tail = file.path.substring(oldPath.length);
+          return { ...file, path: `${newPath}${tail}` };
+        }
+        return file;
+      });
+      setProject({ ...project, files: updatedFiles });
+    }
+
+    setDesignerFiles(prevFiles =>
+      prevFiles.map(df => {
+        if (df.id === oldPath || df.id.startsWith(oldPath + '/')) {
+          const tail = df.id.substring(oldPath.length);
+          const newDesignerPath = `${newPath}${tail}`;
+          return {
+            ...df,
+            id: newDesignerPath,
+            name: df.id === oldPath ? newBaseName : df.name,
+          };
+        }
+        return df;
+      })
+    );
+
+    if (activeDesignerFileId === oldPath || activeDesignerFileId?.startsWith(oldPath + '/')) {
+      const tail = activeDesignerFileId.substring(oldPath.length);
+      setActiveDesignerFileId(`${newPath}${tail}`);
+    }
+
+    if (activeEditorFile?.path === oldPath || activeEditorFile?.path.startsWith(oldPath + '/')) {
+      const tail = activeEditorFile.path.substring(oldPath.length);
+      const newEditorPath = `${newPath}${tail}`;
+      setActiveEditorFile(prev => prev ? { ...prev, path: newEditorPath } : null);
+    }
+
+    toast({ title: "Item Renamed", description: `Renamed to "${newBaseName}".` });
+
     setIsRenameModalOpen(false);
     setRenamingFileId(null);
     setTempFileName("");
@@ -1492,6 +1555,10 @@ export function AnsibleArchitectLayout() {
                           </Tooltip>
                       )}
                       <Button size="sm" onClick={handleSaveActiveEditorFile}>Save Changes</Button>
+                      <Button size="sm" variant="outline" onClick={(e) => openRenameModal(activeEditorFile.path, activeEditorFile.path.split('/').pop() || activeEditorFile.path, e)}>
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Rename
+                      </Button>
                       <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeEditorFile.path, 'file')}>
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete File
