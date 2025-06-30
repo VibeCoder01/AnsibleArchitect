@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
@@ -961,376 +962,392 @@ export function AnsibleArchitectLayout() {
 
 
   return (
-    <div className="flex h-screen bg-background p-4 space-x-0">
-      {/* Left Panel */}
-      <div
-        style={{ flex: `0 0 ${col1Width}px` }}
-        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
-      >
-        <div className="p-3 flex items-center border-b flex-shrink-0">
-          <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
-          <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
+    <TooltipProvider>
+      <div className="flex h-screen bg-background p-4 space-x-0">
+        {/* Left Panel */}
+        <div
+          style={{ flex: `0 0 ${col1Width}px` }}
+          className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
+        >
+          <div className="p-3 flex items-center border-b flex-shrink-0">
+            <AnsibleArchitectIcon className="w-6 h-6 text-primary mr-2" />
+            <h1 className="text-lg font-bold font-headline text-primary">Ansible Architect</h1>
+          </div>
+          <Tabs defaultValue="project" className="flex-1 flex flex-col min-h-0">
+            <TabsList className="flex-shrink-0 mx-3 mt-2">
+              <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
+              <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
+            </TabsList>
+            <TabsContent value="modules" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
+              <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
+            </TabsContent>
+            <TabsContent value="project" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
+              <ProjectExplorer 
+                  project={project} 
+                  onFileSelect={handleFileSelect} 
+                  activeFilePath={activeFilePath} 
+                  onCreateDefaultProject={handleCreateDefaultProject}
+                  onAcceptFolder={handleAcceptFolder}
+                  onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
+                  onMoveItem={handleMoveItem}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
-        <Tabs defaultValue="project" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="flex-shrink-0 mx-3 mt-2">
-            <TabsTrigger value="modules" className="flex-1 text-xs">Modules</TabsTrigger>
-            <TabsTrigger value="project" className="flex-1 text-xs">Project</TabsTrigger>
-          </TabsList>
-          <TabsContent value="modules" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
-            <ModulePalette onAddTaskFromPalette={handleAddTaskFromPalette} />
-          </TabsContent>
-          <TabsContent value="project" className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden">
-             <ProjectExplorer 
-                project={project} 
-                onFileSelect={handleFileSelect} 
-                activeFilePath={activeFilePath} 
-                onCreateDefaultProject={handleCreateDefaultProject}
-                onAcceptFolder={handleAcceptFolder}
-                onDeleteFolder={(path) => handleDeleteItem(path, 'directory')}
-                onMoveItem={handleMoveItem}
-            />
-          </TabsContent>
-        </Tabs>
-      </div>
 
-      <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
+        <Resizer onMouseDown={(e) => handleMouseDown("col1", e)} />
 
-      {/* Middle Panel */}
-      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative">
-        <Tabs value={mainView} onValueChange={(value) => setMainView(value as 'designer' | 'editor')} className="flex flex-col flex-1 min-w-0 min-h-0">
-          <TabsList className="flex-shrink-0 border-b bg-card rounded-t-lg p-1">
-             <TabsTrigger value="designer" className="text-xs px-2 py-1.5 h-auto">Designer</TabsTrigger>
-             <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeEditorFile}>Editor</TabsTrigger>
-          </TabsList>
+        {/* Middle Panel */}
+        <div className="flex flex-col flex-1 min-w-0 min-h-0 relative">
+          <Tabs value={mainView} onValueChange={(value) => setMainView(value as 'designer' | 'editor')} className="flex flex-col flex-1 min-w-0 min-h-0">
+            <TabsList className="flex-shrink-0 border-b bg-card rounded-t-lg p-1">
+              <TabsTrigger value="designer" className="text-xs px-2 py-1.5 h-auto">Designer</TabsTrigger>
+              <TabsTrigger value="editor" className="text-xs px-2 py-1.5 h-auto" disabled={!activeEditorFile}>Editor</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden flex flex-col">
-            <div className="flex items-center justify-between p-2 border-b bg-card flex-shrink-0">
-              <div className="flex items-center">
-                <Select value={activeDesignerFileId || ""} onValueChange={setActiveDesignerFileId}>
-                    <SelectTrigger className="w-[250px] h-9 text-sm font-medium">
-                        <SelectValue placeholder="Select a file" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {designerFiles.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                        </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <TabsContent value="designer" className="flex-1 min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden flex flex-col">
+              <div className="flex items-center justify-between p-2 border-b bg-card flex-shrink-0">
+                <div className="flex items-center">
+                  <Select value={activeDesignerFileId || ""} onValueChange={setActiveDesignerFileId}>
+                      <SelectTrigger className="w-[250px] h-9 text-sm font-medium">
+                          <SelectValue placeholder="Select a file" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {designerFiles.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                          </SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
 
-                {activeDesignerFile && (
-                <>
-                    <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-1.5 w-7 h-7"
-                    onClick={(e) => openRenameModal(activeDesignerFile.id, activeDesignerFile.name, e)}
-                    >
-                    <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-7 h-7"
-                    onClick={(e) => handleCloseFile(activeDesignerFile.id, e)}
-                    disabled={designerFiles.length <= 1}
-                    >
-                    <X className="w-4 h-4" />
-                    </Button>
-                </>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {activeDesignerFile && project?.files.some(f => f.path === activeDesignerFile.id) && (
+                  {activeDesignerFile && (
                   <>
-                    {activeDesignerFileIsDefault && (
-                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeDesignerFile.id)}>
-                        <Check className="w-4 h-4 mr-2" />
-                        Accept File
+                      <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-1.5 w-7 h-7"
+                      onClick={(e) => openRenameModal(activeDesignerFile.id, activeDesignerFile.name, e)}
+                      >
+                      <Edit2 className="w-4 h-4" />
                       </Button>
-                    )}
-                    <Button size="sm" onClick={handleSaveDesignerFile}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save to Project
-                    </Button>
-                     <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeDesignerFile.id, 'file')}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete File
-                    </Button>
+                      <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-7 h-7"
+                      onClick={(e) => handleCloseFile(activeDesignerFile.id, e)}
+                      disabled={designerFiles.length <= 1}
+                      >
+                      <X className="w-4 h-4" />
+                      </Button>
                   </>
-                )}
-              </div>
-            </div>
-            <div 
-              className="flex-grow min-h-0 flex"
-              onDrop={handleDropOnTaskList}
-              onDragOver={handleDragOverTaskList}
-              onDragLeave={handleDragLeaveTaskList}
-            >
-              <div
-                  className="w-full h-full flex"
-                >
-                {activeDesignerFile ? (
-                <>
-                    <div
-                        style={{ flex: `0 0 ${col2Width}px` }}
-                        className="min-w-0 bg-card shadow-sm flex flex-col border-r"
-                    >
-                        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">YAML Blocks</h2>
-                        <div className="flex-grow min-h-0">
-                            <TaskList
-                                tasks={activeDesignerFile.tasks}
-                                onUpdateTask={updateTaskInActiveFile}
-                                onDeleteTask={deleteTaskInActiveFile}
-                                onMoveTask={moveTaskInActiveFile}
-                                definedRoles={definedRoles}
-                                hoveredTaskId={hoveredTaskId}
-                                onSetHoveredTaskId={setHoveredTaskId}
-                                isDraggingOver={isDraggingOverTaskList}
-                            />
-                        </div>
-                    </div>
-
-                    <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
-
-                    <div
-                    style={{ flex: '1 1 0%' }}
-                    className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
-                    >
-                    <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({activeDesignerFile.name})</h2>
-                    <div className="flex-grow overflow-hidden">
-                        <YamlDisplay
-                        yamlSegments={yamlSegments}
-                        hoveredTaskId={hoveredTaskId}
-                        onSetHoveredSegmentId={setHoveredTaskId}
-                        />
-                    </div>
-                    </div>
-                </>
-                ) : (
-                <div className="flex items-center justify-center w-full text-muted-foreground">
-                    <p>No file selected. Create one or open a YAML file from the project.</p>
+                  )}
                 </div>
-                )}
-                </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
-            {activeEditorFile ? (
-              <div className="flex flex-col h-full">
-                <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                     <h2 className="text-base font-semibold font-code" title={activeEditorFile.path}>{activeEditorFile.path}</h2>
-                     {activeEditorFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {activeEditorFile.isDefault && (
-                      <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeEditorFile.path)}>
-                        <Check className="w-4 h-4 mr-2" />
-                        Accept File
+                <div className="flex items-center gap-2">
+                  {activeDesignerFile && project?.files.some(f => f.path === activeDesignerFile.id) && (
+                    <>
+                      {activeDesignerFileIsDefault && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeDesignerFile.id)}>
+                              <Check className="w-4 h-4 mr-2" />
+                              Accept File
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Remove the 'default' status, marking this as a permanent project file.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      <Button size="sm" onClick={handleSaveDesignerFile}>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save to Project
                       </Button>
-                    )}
-                    <Button size="sm" onClick={handleSaveActiveEditorFile}>Save Changes</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeEditorFile.path, 'file')}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete File
-                    </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeDesignerFile.id, 'file')}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete File
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div 
+                className="flex-grow min-h-0 flex"
+                onDrop={handleDropOnTaskList}
+                onDragOver={handleDragOverTaskList}
+                onDragLeave={handleDragLeaveTaskList}
+              >
+                <div
+                    className="w-full h-full flex"
+                  >
+                  {activeDesignerFile ? (
+                  <>
+                      <div
+                          style={{ flex: `0 0 ${col2Width}px` }}
+                          className="min-w-0 bg-card shadow-sm flex flex-col border-r"
+                      >
+                          <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">YAML Blocks</h2>
+                          <div className="flex-grow min-h-0">
+                              <TaskList
+                                  tasks={activeDesignerFile.tasks}
+                                  onUpdateTask={updateTaskInActiveFile}
+                                  onDeleteTask={deleteTaskInActiveFile}
+                                  onMoveTask={moveTaskInActiveFile}
+                                  definedRoles={definedRoles}
+                                  hoveredTaskId={hoveredTaskId}
+                                  onSetHoveredTaskId={setHoveredTaskId}
+                                  isDraggingOver={isDraggingOverTaskList}
+                              />
+                          </div>
+                      </div>
+
+                      <Resizer onMouseDown={(e) => handleMouseDown("col2", e)} />
+
+                      <div
+                      style={{ flex: '1 1 0%' }}
+                      className="min-w-0 bg-card shadow-sm flex flex-col overflow-hidden"
+                      >
+                      <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Generated YAML ({activeDesignerFile.name})</h2>
+                      <div className="flex-grow overflow-hidden">
+                          <YamlDisplay
+                          yamlSegments={yamlSegments}
+                          hoveredTaskId={hoveredTaskId}
+                          onSetHoveredSegmentId={setHoveredTaskId}
+                          />
+                      </div>
+                      </div>
+                  </>
+                  ) : (
+                  <div className="flex items-center justify-center w-full text-muted-foreground">
+                      <p>No file selected. Create one or open a YAML file from the project.</p>
+                  </div>
+                  )}
+                  </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="editor" className="flex-1 flex flex-col min-h-0 rounded-b-lg overflow-hidden bg-card data-[state=inactive]:hidden">
+              {activeEditorFile ? (
+                <div className="flex flex-col h-full">
+                  <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-semibold font-code" title={activeEditorFile.path}>{activeEditorFile.path}</h2>
+                      {activeEditorFile.isDefault && <span className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">Default</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {activeEditorFile.isDefault && (
+                         <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="outline" onClick={() => handleAcceptFolder(activeEditorFile.path)}>
+                                <Check className="w-4 h-4 mr-2" />
+                                Accept File
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remove the 'default' status, marking this as a permanent project file.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                      )}
+                      <Button size="sm" onClick={handleSaveActiveEditorFile}>Save Changes</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteItem(activeEditorFile.path, 'file')}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete File
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <Textarea
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
+                      placeholder={`Content for ${activeEditorFile.path}`}
+                    />
                   </div>
                 </div>
-                <div className="flex-1 min-h-0">
-                  <Textarea
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    className="h-full w-full resize-none border-0 rounded-none font-code text-sm focus-visible:ring-0"
-                    placeholder={`Content for ${activeEditorFile.path}`}
-                  />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <p>Select a non-YAML file from the Project Explorer to edit.</p>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Select a non-YAML file from the Project Explorer to edit.</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
 
-      <Resizer onMouseDown={(e) => handleMouseDown("actionsPanel", e)} />
+        <Resizer onMouseDown={(e) => handleMouseDown("actionsPanel", e)} />
 
-      {/* Actions Panel */}
-      <div 
-        style={{ flex: `0 0 ${actionsPanelWidth}px` }}
-        className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
-      >
-        <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
-        <ScrollArea className="flex-1 min-h-0">
-            <div className="p-3 space-y-2">
-              <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
-              </Button>
-              <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
-              
-              <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
-              </Button>
-              
-              <Separator className="my-2"/>
-
-              <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New File
-              </Button>
-              <Separator className="my-2"/>
-              <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate YAML File
-              </Button>
-              <input
-                type="file"
-                ref={playbookFileRef}
-                onChange={handlePlaybookFileChange}
-                accept=".yaml,.yml"
-                className="hidden"
-              />
-              <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <Download className="w-3.5 h-3.5 mr-1.5" /> Export Active File YAML
-              </Button>
-              <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
-                Copy Active File YAML
-              </Button>
-              <Separator className="my-2"/>
-              <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
-              </Button>
-              <input
-                type="file"
-                ref={inventoryFileRef}
-                onChange={handleInventoryFileChange}
-                accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
-                className="hidden"
-              />
-              <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
-              </Button>
-              <Separator className="my-2"/>
-              <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
-                <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
-              </Button>
-              <Separator className="my-2"/>
-              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
-                <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
-                </a>
-              </Button>
-              <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
-                <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
-                </a>
-              </Button>
-              <Separator className="my-2"/>
-            </div>
-        </ScrollArea>
-      </div>
-
-      {/* Modals */}
-      <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="font-headline">Manage Defined Roles</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newRoleNameInput">New Role Name</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="newRoleNameInput"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="e.g., webserver_setup"
-                  className="text-sm"
-                />
-                <Button onClick={handleAddDefinedRole} size="sm">
-                  <PlusCircle className="w-4 h-4 mr-1.5" /> Add Role
+        {/* Actions Panel */}
+        <div 
+          style={{ flex: `0 0 ${actionsPanelWidth}px` }}
+          className="min-w-0 bg-card shadow-lg rounded-lg border flex flex-col"
+        >
+          <h2 className="text-base font-semibold p-3 border-b text-foreground font-headline flex-shrink-0">Actions</h2>
+          <ScrollArea className="flex-1 min-h-0">
+              <div className="p-3 space-y-2">
+                <Button onClick={() => projectZipRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <UploadCloud className="w-3.5 h-3.5 mr-1.5" /> Import Project (ZIP)
                 </Button>
+                <input type="file" ref={projectZipRef} onChange={handleImportZip} accept=".zip" className="hidden" />
+                
+                <Button onClick={handleExportZip} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <Archive className="w-3.5 h-3.5 mr-1.5" /> Export Project (ZIP)
+                </Button>
+                
+                <Separator className="my-2"/>
+
+                <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New File
+                </Button>
+                <Separator className="my-2"/>
+                <Button onClick={handleValidatePlaybookClick} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate YAML File
+                </Button>
+                <input
+                  type="file"
+                  ref={playbookFileRef}
+                  onChange={handlePlaybookFileChange}
+                  accept=".yaml,.yml"
+                  className="hidden"
+                />
+                <Button onClick={handleExportYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> Export Active File YAML
+                </Button>
+                <Button onClick={handleCopyYaml} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <CopyIconLucide className="w-3.5 h-3.5 mr-1.5" />
+                  Copy Active File YAML
+                </Button>
+                <Separator className="my-2"/>
+                <Button onClick={() => inventoryFileRef.current?.click()} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <FileCheck className="w-3.5 h-3.5 mr-1.5" /> Validate Inventory
+                </Button>
+                <input
+                  type="file"
+                  ref={inventoryFileRef}
+                  onChange={handleInventoryFileChange}
+                  accept=".ini,.yaml,.yml,.json,text/plain,inventory/*,hosts"
+                  className="hidden"
+                />
+                <Button onClick={() => setIsInventoryVisualizerOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <EyeIcon className="w-3.5 h-3.5 mr-1.5" /> Visualize Inventory Graph
+                </Button>
+                <Separator className="my-2"/>
+                <Button onClick={() => setIsManageRolesModalOpen(true)} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <Settings className="w-3.5 h-3.5 mr-1.5" /> Manage Roles
+                </Button>
+                <Separator className="my-2"/>
+                <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
+                  <a href="https://galaxy.ansible.com/ui/collections/" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Browse Ansible Galaxy
+                  </a>
+                </Button>
+                <Button variant="link" asChild className="text-xs p-0 h-auto text-muted-foreground hover:text-primary justify-start whitespace-nowrap">
+                  <a href="https://docs.ansible.com/ansible/latest/os_guide/intro_windows.html" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Manage Windows with Ansible
+                  </a>
+                </Button>
+                <Separator className="my-2"/>
               </div>
-            </div>
-            <Separator />
-            {definedRoles.length > 0 ? (
+          </ScrollArea>
+        </div>
+
+        {/* Modals */}
+        <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="font-headline">Manage Defined Roles</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
               <div className="space-y-2">
-                <Label>Existing Roles</Label>
-                <ScrollArea className="h-[200px] border rounded-md p-2">
-                  {definedRoles.map(role => (
-                    <div key={role.id} className="flex items-center justify-between p-1.5 hover:bg-muted/50 rounded-md">
-                      <span className="text-sm">{role.name}</span>
-                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleDeleteDefinedRole(role.id)}>
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </ScrollArea>
+                <Label htmlFor="newRoleNameInput">New Role Name</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="newRoleNameInput"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    placeholder="e.g., webserver_setup"
+                    className="text-sm"
+                  />
+                  <Button onClick={handleAddDefinedRole} size="sm">
+                    <PlusCircle className="w-4 h-4 mr-1.5" /> Add Role
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No roles defined yet.</p>
-            )}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Close</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Separator />
+              {definedRoles.length > 0 ? (
+                <div className="space-y-2">
+                  <Label>Existing Roles</Label>
+                  <ScrollArea className="h-[200px] border rounded-md p-2">
+                    {definedRoles.map(role => (
+                      <div key={role.id} className="flex items-center justify-between p-1.5 hover:bg-muted/50 rounded-md">
+                        <span className="text-sm">{role.name}</span>
+                        <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => handleDeleteDefinedRole(role.id)}>
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">No roles defined yet.</p>
+              )}
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="font-headline">Rename File</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="fileNameInput">File Name</Label>
-            <Input
-              id="fileNameInput"
-              value={tempFileName}
-              onChange={(e) => setTempFileName(e.target.value)}
-              className="mt-1 text-sm"
-              onKeyDown={(e) => e.key === 'Enter' && handleRenameFile()}
-            />
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleRenameFile}>Save Name</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      <AlertDialog open={!!itemToConfirmDelete} onOpenChange={(isOpen) => !isOpen && setItemToConfirmDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the {itemToConfirmDelete?.type} and all its contents: <br />
-              <strong className="font-mono break-all">{itemToConfirmDelete?.path}</strong>
-              <br />This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setItemToConfirmDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="font-headline">Rename File</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Label htmlFor="fileNameInput">File Name</Label>
+              <Input
+                id="fileNameInput"
+                value={tempFileName}
+                onChange={(e) => setTempFileName(e.target.value)}
+                className="mt-1 text-sm"
+                onKeyDown={(e) => e.key === 'Enter' && handleRenameFile()}
+              />
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button onClick={handleRenameFile}>Save Name</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        <AlertDialog open={!!itemToConfirmDelete} onOpenChange={(isOpen) => !isOpen && setItemToConfirmDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the {itemToConfirmDelete?.type} and all its contents: <br />
+                <strong className="font-mono break-all">{itemToConfirmDelete?.path}</strong>
+                <br />This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToConfirmDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {isClientReady && isInventoryVisualizerOpen && (
-        <InventoryStructureVisualizer
-          isOpen={isInventoryVisualizerOpen}
-          onOpenChange={setIsInventoryVisualizerOpen}
-        />
-      )}
-    </div>
+        {isClientReady && isInventoryVisualizerOpen && (
+          <InventoryStructureVisualizer
+            isOpen={isInventoryVisualizerOpen}
+            onOpenChange={setIsInventoryVisualizerOpen}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
