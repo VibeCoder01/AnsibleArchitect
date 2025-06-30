@@ -180,13 +180,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onDragEnter(null);
-  };
-
-
   const Icon = node.type === 'directory' ? (isExpanded ? FolderOpen : Folder) : File;
   const isActive = node.path === activeFilePath;
 
@@ -195,7 +188,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       className={cn("group/item", isDragOver && node.type === 'directory' && "bg-primary/10 ring-1 ring-primary rounded-md")}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onDragLeave={handleDragLeave}
     >
       <div
         style={{ paddingLeft: `${level * 1}rem` }}
