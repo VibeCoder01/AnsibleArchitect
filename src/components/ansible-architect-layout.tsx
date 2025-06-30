@@ -994,6 +994,20 @@ export function AnsibleArchitectLayout() {
             path: `${rolePath}tasks/`,
           });
         }
+        
+        const standardSubdirs = ['tasks', 'handlers', 'defaults', 'vars', 'meta', 'files', 'templates'];
+        const hasAnyStandardSubdir = standardSubdirs.some(subdir => 
+            filePaths.some(p => p.startsWith(`${rolePath}${subdir}/`))
+        );
+
+        if (!hasAnyStandardSubdir) {
+          issues.push({
+              category: "Roles",
+              error: `Role "${roleName}" has no standard subdirectories`,
+              why: "A role should contain at least one of tasks/, handlers/, defaults/, etc. to be structured correctly.",
+              path: rolePath,
+          });
+        }
       }
     }
     
