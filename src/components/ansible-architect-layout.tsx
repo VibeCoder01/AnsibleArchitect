@@ -9,9 +9,9 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save, ShieldAlert, AlertTriangle, CheckCircle2, Loader2, Circle } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save, ShieldAlert, AlertTriangle, CheckCircle2, Loader2, Circle, Wand2, Lightbulb } from "lucide-react";
 import * as yaml from "js-yaml";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile, ProjectIssue } from "@/types/ansible";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile, ProjectIssue, ProjectImprovement } from "@/types/ansible";
 import { moduleGroups } from "@/config/ansible-modules";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -62,6 +62,18 @@ const projectCheckSteps = [
     { id: 'yaml', label: 'Validating YAML syntax across all .yml files...' },
     { id: 'paths', label: 'Checking for non-portable absolute paths...' },
     { id: 'vars', label: 'Assessing variable management structure...' },
+];
+
+const improvementCheckSteps = [
+    { id: 'playbooks', label: 'Checking for playbook structure...' },
+    { id: 'roles', label: 'Analyzing role usage...' },
+    { id: 'secrets', label: 'Verifying secrets management (Vault)...' },
+    { id: 'dependencies', label: 'Looking for role dependencies in meta/...' },
+    { id: 'templating', label: 'Checking for Jinja2 templates...' },
+    { id: 'tagging', label: 'Scanning for task tags...' },
+    { id: 'testing', label: 'Checking for tests folder...' },
+    { id: 'environments', label: 'Analyzing inventory environment separation...' },
+    { id: 'documentation', label: 'Scanning for role documentation (READMEs)...' },
 ];
 
 
@@ -222,13 +234,20 @@ export function AnsibleArchitectLayout() {
   const [editorContent, setEditorContent] = React.useState<string>("");
   const [mainView, setMainView] = React.useState<'designer' | 'editor'>('designer');
   const [itemToConfirmDelete, setItemToConfirmDelete] = React.useState<{ path: string; type: 'file' | 'directory' } | null>(null);
+  
+  // Project error checking state
   const [projectIssues, setProjectIssues] = React.useState<ProjectIssue[]>([]);
   const [isProjectCheckModalOpen, setIsProjectCheckModalOpen] = React.useState(false);
-
-  // Project check state
   const [isCheckingProject, setIsCheckingProject] = React.useState(false);
   const [currentCheck, setCurrentCheck] = React.useState<string | null>(null);
   const [completedChecks, setCompletedChecks] = React.useState<string[]>([]);
+  
+  // Project improvement checking state
+  const [projectImprovements, setProjectImprovements] = React.useState<ProjectImprovement[]>([]);
+  const [isProjectImprovementModalOpen, setIsProjectImprovementModalOpen] = React.useState(false);
+  const [isCheckingImprovements, setIsCheckingImprovements] = React.useState(false);
+  const [currentImprovementCheck, setCurrentImprovementCheck] = React.useState<string | null>(null);
+  const [completedImprovementChecks, setCompletedImprovementChecks] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     const storedFiles = localStorage.getItem(LOCAL_STORAGE_DESIGNER_FILES_KEY);
@@ -1098,7 +1117,176 @@ export function AnsibleArchitectLayout() {
     setCurrentCheck(null);
     setProjectIssues(issues);
     setIsCheckingProject(false);
-};
+  };
+  
+  const handleCheckProjectForImprovements = async () => {
+    if (!project) {
+        toast({ title: "No Project Loaded", description: "Cannot check an empty project.", variant: "destructive" });
+        return;
+    }
+
+    setIsCheckingImprovements(true);
+    setCurrentImprovementCheck(null);
+    setCompletedImprovementChecks([]);
+    setProjectImprovements([]);
+    setIsProjectImprovementModalOpen(true);
+    
+    const improvements: ProjectImprovement[] = [];
+    const files = project.files;
+    const filePaths = files.map(f => f.path);
+    const ymlFiles = files.filter(f => f.path.endsWith('.yml') || f.path.endsWith('.yaml'));
+
+    const runCheck = async (checkId: string, checkLogic: () => void) => {
+        setCurrentImprovementCheck(checkId);
+        await new Promise(resolve => setTimeout(resolve, 300)); // Artificial delay for UX
+        checkLogic();
+        setCompletedImprovementChecks(prev => [...prev, checkId]);
+    };
+
+    // Check 1: Playbook structure
+    await runCheck('playbooks', () => {
+        const hasPlaybooksDir = filePaths.some(p => p.startsWith('playbooks/') && (p.endsWith('.yml') || p.endsWith('.yaml')));
+        improvements.push({
+            category: 'Structure',
+            improvement: 'Uses playbooks/ to hold grouped tasks',
+            why: 'Improves readability and separation of concerns for complex projects.',
+            status: hasPlaybooksDir ? 'achieved' : 'missing',
+            path: hasPlaybooksDir ? 'playbooks/' : undefined,
+        });
+    });
+
+    // Check 2: Roles structure
+    await runCheck('roles', () => {
+        const roleDirs = [...new Set(filePaths.filter(p => p.startsWith('roles/')).map(p => p.split('/')[1]).filter(Boolean))];
+        const hasStandardRoles = roleDirs.length > 0 && filePaths.some(p => p.match(/^roles\/[^/]+\/(tasks|handlers|defaults|vars|meta)\//));
+        improvements.push({
+            category: 'Structure',
+            improvement: 'Uses roles/ with a standard Ansible layout',
+            why: 'Encourages code reuse and follows community best practices.',
+            status: hasStandardRoles ? 'achieved' : 'missing',
+            path: hasStandardRoles ? 'roles/' : undefined,
+        });
+    });
+
+    // Check 3: Vault for secrets
+    await runCheck('secrets', () => {
+        const usesVault = ymlFiles.some(f => f.content.trim().startsWith('$ANSIBLE_VAULT'));
+        improvements.push({
+            category: 'Secrets',
+            improvement: 'Uses ansible-vault for sensitive variables',
+            why: 'Secures sensitive data like passwords and API keys from being stored in plaintext.',
+            status: usesVault ? 'achieved' : 'missing',
+            path: usesVault ? ymlFiles.find(f => f.content.trim().startsWith('$ANSIBLE_VAULT'))?.path : undefined,
+        });
+    });
+
+    // Check 4: Role dependencies
+    await runCheck('dependencies', () => {
+        const metaFiles = files.filter(f => f.path.match(/^roles\/[^/]+\/meta\/main\.yml$/));
+        const hasDependenciesKey = metaFiles.some(f => {
+            try {
+                const content = yaml.load(f.content) as any;
+                return content && (Array.isArray(content.dependencies) || (content.galaxy_info && Array.isArray(content.galaxy_info.dependencies)));
+            } catch(e) { return false; }
+        });
+        improvements.push({
+            category: 'Modularity',
+            improvement: 'Role dependencies are declared in meta/main.yml',
+            why: 'Allows Ansible Galaxy and other tools to automatically manage role dependencies.',
+            status: hasDependenciesKey ? 'achieved' : 'missing',
+            path: hasDependenciesKey ? 'roles/*/meta/main.yml' : undefined,
+        });
+    });
+    
+    // Check 5: Templating
+    await runCheck('templating', () => {
+        const hasJ2Templates = filePaths.some(p => p.startsWith('templates/') && p.endsWith('.j2'));
+        improvements.push({
+            category: 'Templating',
+            improvement: 'Uses templates/ for Jinja2 template files',
+            why: 'Separates configuration logic from static files, enabling dynamic content generation.',
+            status: hasJ2Templates ? 'achieved' : 'missing',
+            path: hasJ2Templates ? 'templates/' : undefined,
+        });
+    });
+    
+    // Check 6: Tagging
+    await runCheck('tagging', () => {
+        let hasTags = false;
+        for (const file of ymlFiles) {
+            try {
+                const docs = yaml.loadAll(file.content);
+                for(const doc of docs) {
+                    if(!doc) continue;
+                    const checkTasksForTags = (tasks: any) => {
+                         if(!Array.isArray(tasks)) return false;
+                         return tasks.some(task => task && typeof task === 'object' && 'tags' in task);
+                    };
+                    if (Array.isArray(doc) && checkTasksForTags(doc)) { hasTags = true; break; }
+                    if (typeof doc === 'object' && doc !== null) {
+                        if(checkTasksForTags((doc as any).tasks || []) || checkTasksForTags((doc as any).pre_tasks || []) || checkTasksForTags((doc as any).post_tasks || []) || checkTasksForTags((doc as any).handlers || [])) {
+                            hasTags = true;
+                            break;
+                        }
+                    }
+                }
+            } catch(e) { /* ignore parse errors */ }
+            if (hasTags) break;
+        }
+        improvements.push({
+            category: 'Tagging',
+            improvement: 'Tasks have `tags` fields for selective execution',
+            why: 'Enables running or skipping specific parts of a playbook, useful for development and targeted changes.',
+            status: hasTags ? 'achieved' : 'missing'
+        });
+    });
+
+    // Check 7: Testing
+    await runCheck('testing', () => {
+        const hasTests = filePaths.some(p => p.startsWith('tests/'));
+        improvements.push({
+            category: 'Testing',
+            improvement: 'Project has a tests/ folder with validation playbooks',
+            why: 'Facilitates automated testing and CI/CD integration to ensure playbook correctness.',
+            status: hasTests ? 'achieved' : 'missing',
+            path: hasTests ? 'tests/' : undefined,
+        });
+    });
+
+    // Check 8: Environment separation
+    await runCheck('environments', () => {
+        const inventoryFiles = filePaths.filter(p => p.startsWith('inventories/'));
+        const inventorySubDirs = new Set(inventoryFiles.map(p => p.substring('inventories/'.length).split('/')[0]).filter(Boolean));
+        const hasSeparation = inventorySubDirs.size > 1; // e.g., 'production' and 'staging'
+        improvements.push({
+            category: 'Environment Separation',
+            improvement: 'Uses subdirectories in inventories/ for environment separation',
+            why: 'Provides a clean separation of variables and hosts for different environments like staging and production.',
+            status: hasSeparation ? 'achieved' : 'missing',
+            path: hasSeparation ? 'inventories/' : undefined,
+        });
+    });
+
+    // Check 9: Documentation
+    await runCheck('documentation', () => {
+        const roleDirs = [...new Set(filePaths.filter(p => p.startsWith('roles/')).map(p => p.split('/')[1]).filter(Boolean))];
+        let hasReadme = false;
+        if(roleDirs.length > 0) {
+            hasReadme = roleDirs.some(role => filePaths.includes(`roles/${role}/README.md`));
+        }
+        improvements.push({
+            category: 'Documentation',
+            improvement: 'Roles contain a README.md for documentation',
+            why: 'Aids in understanding, reuse, and onboarding for other developers.',
+            status: hasReadme ? 'achieved' : 'missing',
+            path: hasReadme ? 'roles/*/README.md' : undefined
+        });
+    });
+
+    setCurrentImprovementCheck(null);
+    setProjectImprovements(improvements);
+    setIsCheckingImprovements(false);
+  };
 
 
   const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
@@ -1351,6 +1539,9 @@ export function AnsibleArchitectLayout() {
                 <Button onClick={handleCheckProject} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                   <ShieldAlert className="w-3.5 h-3.5 mr-1.5" /> Check Project for Errors
                 </Button>
+                <Button onClick={handleCheckProjectForImprovements} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <Wand2 className="w-3.5 h-3.5 mr-1.5" /> Check for Improvements
+                </Button>
                 <Separator className="my-2"/>
 
                 <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
@@ -1479,6 +1670,72 @@ export function AnsibleArchitectLayout() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        
+        <Dialog open={isProjectImprovementModalOpen} onOpenChange={setIsProjectImprovementModalOpen}>
+            <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                <DialogHeader>
+                    <DialogTitle className="font-headline">
+                        {isCheckingImprovements ? 'Checking for Improvements...' : 'Project Improvement Report'}
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="flex-1 min-h-0">
+                    <ScrollArea className="h-full pr-4">
+                        {isCheckingImprovements ? (
+                            <div className="p-4 space-y-3">
+                                {improvementCheckSteps.map(check => (
+                                    <div key={check.id} className="flex items-center gap-3 text-sm transition-all duration-300">
+                                        <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                                            {completedImprovementChecks.includes(check.id) ? (
+                                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                            ) : currentImprovementCheck === check.id ? (
+                                                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                            ) : (
+                                                <Circle className="w-5 h-5 text-muted-foreground/30" />
+                                            )}
+                                        </div>
+                                        <span className={cn(
+                                            "transition-colors",
+                                            completedImprovementChecks.includes(check.id) && "text-muted-foreground",
+                                            currentImprovementCheck === check.id && "font-semibold text-primary"
+                                        )}>
+                                            {check.label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="space-y-4 p-1">
+                                {projectImprovements.map((imp, index) => (
+                                    <Card key={index} className={cn(imp.status === 'achieved' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20')}>
+                                        <CardHeader className="pb-4">
+                                            <CardTitle className="text-base flex items-center gap-2">
+                                                {imp.status === 'achieved' ? <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" /> : <Lightbulb className="w-5 h-5 text-amber-500 flex-shrink-0" />}
+                                                {imp.improvement}
+                                            </CardTitle>
+                                            <CardDescription>
+                                                <span className="font-semibold">Category:</span> {imp.category}
+                                                {imp.path && <span className="font-mono bg-muted p-1 rounded-sm ml-2 text-xs">{imp.path}</span>}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <p className="text-sm">{imp.why}</p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </ScrollArea>
+                </div>
+                <DialogFooter className="flex-shrink-0 pt-4">
+                <DialogClose asChild>
+                    <Button variant="outline" disabled={isCheckingImprovements}>
+                        {isCheckingImprovements ? 'Checking...' : 'Close'}
+                    </Button>
+                </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
 
         <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -1581,5 +1838,7 @@ export function AnsibleArchitectLayout() {
     </TooltipProvider>
   );
 }
+
+    
 
     

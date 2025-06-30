@@ -75,3 +75,13 @@ export interface ProjectIssue {
   why: string;
   path?: string;
 }
+
+export interface ProjectImprovement {
+  category: string;
+  improvement: string;
+  why: string;
+  path?: string;
+  status: 'achieved' | 'missing';
+}
+
+    
