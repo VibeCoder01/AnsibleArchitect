@@ -9,7 +9,7 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save, ShieldAlert, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save, ShieldAlert, AlertTriangle, CheckCircle2, Loader2, Circle } from "lucide-react";
 import * as yaml from "js-yaml";
 import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile, ProjectIssue } from "@/types/ansible";
 import { moduleGroups } from "@/config/ansible-modules";
@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
@@ -52,6 +53,16 @@ const MIN_COLUMN_WIDTH = 150;
 const LOCAL_STORAGE_DESIGNER_FILES_KEY = "ansibleArchitectDesignerFiles";
 const LOCAL_STORAGE_ACTIVE_DESIGNER_FILE_ID_KEY = "ansibleArchitectActiveDesignerFileId";
 const moduleDefinitions = moduleGroups.flatMap(g => g.modules);
+
+const projectCheckSteps = [
+    { id: 'config', label: 'Checking for ansible.cfg and root playbook...' },
+    { id: 'roles', label: 'Analyzing role structures...' },
+    { id: 'secrets', label: 'Scanning for plaintext secrets...' },
+    { id: 'ips', label: 'Looking for hardcoded IP addresses...' },
+    { id: 'yaml', label: 'Validating YAML syntax across all .yml files...' },
+    { id: 'paths', label: 'Checking for non-portable absolute paths...' },
+    { id: 'vars', label: 'Assessing variable management structure...' },
+];
 
 
 function parseYamlToTasks(yamlContent: string): AnsibleTask[] {
@@ -214,6 +225,10 @@ export function AnsibleArchitectLayout() {
   const [projectIssues, setProjectIssues] = React.useState<ProjectIssue[]>([]);
   const [isProjectCheckModalOpen, setIsProjectCheckModalOpen] = React.useState(false);
 
+  // Project check state
+  const [isCheckingProject, setIsCheckingProject] = React.useState(false);
+  const [currentCheck, setCurrentCheck] = React.useState<string | null>(null);
+  const [completedChecks, setCompletedChecks] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     const storedFiles = localStorage.getItem(LOCAL_STORAGE_DESIGNER_FILES_KEY);
@@ -949,181 +964,141 @@ export function AnsibleArchitectLayout() {
   };
 
 
-  const handleCheckProject = () => {
+  const handleCheckProject = async () => {
     if (!project) {
-      toast({ title: "No Project Loaded", description: "Cannot check an empty project.", variant: "destructive" });
-      return;
+        toast({ title: "No Project Loaded", description: "Cannot check an empty project.", variant: "destructive" });
+        return;
     }
-  
+
+    setIsCheckingProject(true);
+    setCurrentCheck(null);
+    setCompletedChecks([]);
+    setProjectIssues([]);
+    setIsProjectCheckModalOpen(true);
+
     const issues: ProjectIssue[] = [];
     const files = project.files;
     const filePaths = files.map(f => f.path);
-  
-    // 1. Missing ansible.cfg
-    if (!filePaths.includes('ansible.cfg')) {
-      issues.push({
-        category: "Config",
-        error: "Missing ansible.cfg",
-        why: "Falls back to global config, may cause unexpected behaviour.",
-        path: "Project Root",
-      });
-    }
-  
-    // 2. Missing site.yml or equivalent root playbook
-    if (!filePaths.some(p => ['site.yml', 'main.yml', 'playbook.yml'].includes(p.split('/').pop() || ''))) {
-      issues.push({
-        category: "Playbook Organisation",
-        error: "No site.yml or root-level entrypoint",
-        why: "No clear starting point for execution.",
-        path: "Project Root",
-      });
-    }
-  
-    // 3. & 4. Roles structure check
-    const roles = files.filter(f => f.path.startsWith('roles/'));
-    if (roles.length > 0) {
-      const roleNames = [...new Set(roles.map(r => r.path.split('/')[1]).filter(Boolean))];
-      
-      for (const roleName of roleNames) {
-        const rolePath = `roles/${roleName}/`;
-        if (!filePaths.some(p => p === `${rolePath}tasks/main.yml`)) {
-          issues.push({
-            category: "Roles",
-            error: `Missing tasks/main.yml in role "${roleName}"`,
-            why: "Execution will fail when role is included without a tasks/main.yml.",
-            path: `${rolePath}tasks/`,
-          });
-        }
-        
-        const standardSubdirs = ['tasks', 'handlers', 'defaults', 'vars', 'meta', 'files', 'templates'];
-        const hasAnyStandardSubdir = standardSubdirs.some(subdir => 
-            filePaths.some(p => p.startsWith(`${rolePath}${subdir}/`))
-        );
-
-        if (!hasAnyStandardSubdir) {
-          issues.push({
-              category: "Roles",
-              error: `Role "${roleName}" has no standard subdirectories`,
-              why: "A role should contain at least one of tasks/, handlers/, defaults/, etc. to be structured correctly.",
-              path: rolePath,
-          });
-        }
-      }
-    }
-    
-    // Regex for IP addresses
     const ipRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/;
-    // Regex for plaintext secrets
     const secretRegex = /(password|token|secret|api_key|private_key):\s*['"]?(.+)['"]?/i;
+    const ymlFiles = files.filter(file => file.path.endsWith('.yml') || file.path.endsWith('.yaml'));
 
-    for (const file of files) {
-      // 6. Hardcoded IPs (outside of vars/inventory files)
-      if (file.path.endsWith('.yml') && !file.path.startsWith('inventories/') && !file.path.startsWith('group_vars/') && !file.path.startsWith('host_vars/')) {
-        if (ipRegex.test(file.content)) {
-          issues.push({
-            category: "Inventory",
-            error: "Potential hardcoded IP address found",
-            why: "Hardcoding IPs reduces portability. Use inventory variables instead.",
-            path: file.path,
-          });
+    const runCheck = async (checkId: string, checkLogic: () => void) => {
+        setCurrentCheck(checkId);
+        await new Promise(resolve => setTimeout(resolve, 300)); // Artificial delay for UX
+        checkLogic();
+        setCompletedChecks(prev => [...prev, checkId]);
+    };
+
+    // Check 1: Config
+    await runCheck('config', () => {
+        if (!filePaths.includes('ansible.cfg')) {
+            issues.push({ category: "Config", error: "Missing ansible.cfg", why: "Falls back to global config, may cause unexpected behaviour.", path: "Project Root" });
         }
-      }
-
-      if (file.path.endsWith('.yml') || file.path.endsWith('.yaml')) {
-        let parsedYamlDocs: any[];
-        try {
-          // 8. Invalid or unlinted YAML
-          parsedYamlDocs = yaml.loadAll(file.content);
-        } catch (e) {
-          issues.push({
-            category: "YAML quality",
-            error: "Invalid YAML syntax",
-            why: "File cannot be parsed and will break playbook execution.",
-            path: file.path,
-          });
-          continue; // Skip other checks for this file
+        if (!filePaths.some(p => ['site.yml', 'main.yml', 'playbook.yml'].includes(p.split('/').pop() || ''))) {
+            issues.push({ category: "Playbook Organisation", error: "No site.yml or root-level entrypoint", why: "No clear starting point for execution.", path: "Project Root" });
         }
-        
-        // 5. Plaintext secrets
-        if (secretRegex.test(file.content)) {
-            issues.push({
-              category: "Secrets",
-              error: "Potential plaintext secret found",
-              why: "Committing secrets in plaintext is a security risk. Use ansible-vault.",
-              path: file.path,
-            });
-        }
+    });
 
-        // 10. Non-portable paths
-        for (const doc of parsedYamlDocs) {
-            if (!doc) continue;
-
-            const checkTasksRecursively = (taskList: any[]) => {
-              if (!Array.isArray(taskList)) return;
-
-              taskList.forEach(task => {
-                if (!task || typeof task !== 'object') return;
-                
-                // Recurse into nested task structures
-                if (task.block) checkTasksRecursively(Array.isArray(task.block) ? task.block : []);
-                if (task.rescue) checkTasksRecursively(Array.isArray(task.rescue) ? task.rescue : []);
-                if (task.always) checkTasksRecursively(Array.isArray(task.always) ? task.always : []);
-
-                const checkPath = (moduleName: string, pathValue: any) => {
-                    if (typeof pathValue === 'string' && pathValue.startsWith('/') && !pathValue.startsWith('/dev/')) {
-                        issues.push({
-                            category: "Non-portable paths",
-                            error: `Absolute path used in module "${moduleName}"`,
-                            why: `Using an absolute source path like '${pathValue}' breaks portability. Use paths relative to the role or playbook.`,
-                            path: file.path,
-                        });
-                    }
-                };
-
-                // Check for ansible.builtin.copy's 'src'
-                if (task['ansible.builtin.copy'] && task['ansible.builtin.copy'].src) {
-                    checkPath('ansible.builtin.copy', task['ansible.builtin.copy'].src);
+    // Check 2: Roles
+    await runCheck('roles', () => {
+        const roles = files.filter(f => f.path.startsWith('roles/'));
+        if (roles.length > 0) {
+            const roleNames = [...new Set(roles.map(r => r.path.split('/')[1]).filter(Boolean))];
+            for (const roleName of roleNames) {
+                const rolePath = `roles/${roleName}/`;
+                if (!filePaths.some(p => p === `${rolePath}tasks/main.yml`)) {
+                    issues.push({ category: "Roles", error: `Missing tasks/main.yml in role "${roleName}"`, why: "Execution will fail when role is included without a tasks/main.yml.", path: `${rolePath}tasks/` });
                 }
-
-                // Check for ansible.builtin.template's 'src'
-                if (task['ansible.builtin.template'] && task['ansible.builtin.template'].src) {
-                    checkPath('ansible.builtin.template', task['ansible.builtin.template'].src);
+                const standardSubdirs = ['tasks', 'handlers', 'defaults', 'vars', 'meta', 'files', 'templates'];
+                const hasAnyStandardSubdir = standardSubdirs.some(subdir => filePaths.some(p => p.startsWith(`${rolePath}${subdir}/`)));
+                if (!hasAnyStandardSubdir) {
+                    issues.push({ category: "Roles", error: `Role "${roleName}" has no standard subdirectories`, why: "A role should contain at least one of tasks/, handlers/, defaults/, etc. to be structured correctly.", path: rolePath });
                 }
-
-                // Check for ansible.builtin.script's path
-                if (task['ansible.builtin.script']) {
-                    checkPath('ansible.builtin.script', task['ansible.builtin.script']);
-                }
-              });
-            };
-
-            if (Array.isArray(doc)) {
-              checkTasksRecursively(doc);
-            } else if (typeof doc === 'object' && doc !== null) {
-              checkTasksRecursively(doc.tasks || []);
-              checkTasksRecursively(doc.pre_tasks || []);
-              checkTasksRecursively(doc.post_tasks || []);
-              checkTasksRecursively(doc.handlers || []);
             }
         }
-      }
-    }
+    });
+
+    // Check 3: Secrets
+    await runCheck('secrets', () => {
+        for (const file of ymlFiles) {
+            if (secretRegex.test(file.content)) {
+                issues.push({ category: "Secrets", error: "Potential plaintext secret found", why: "Committing secrets in plaintext is a security risk. Use ansible-vault.", path: file.path });
+            }
+        }
+    });
     
-    // 11. No use of group_vars/ or host_vars/
-    if (!filePaths.some(p => p.startsWith('group_vars/')) && !filePaths.some(p => p.startsWith('host_vars/'))) {
-      if (files.length > 10) { // Heuristic for non-trivial projects
-        issues.push({
-          category: "Variable structure",
-          error: "No use of group_vars/ or host_vars/",
-          why: "Centralizing variables in group_vars/ or host_vars/ improves structure and reusability over playbook-level 'vars'.",
-          path: "Project Root",
-        });
-      }
-    }
-  
+    // Check 4: IPs
+    await runCheck('ips', () => {
+        for (const file of ymlFiles) {
+            if (!file.path.startsWith('inventories/') && !file.path.startsWith('group_vars/') && !file.path.startsWith('host_vars/')) {
+                if (ipRegex.test(file.content)) {
+                    issues.push({ category: "Inventory", error: "Potential hardcoded IP address found", why: "Hardcoding IPs reduces portability. Use inventory variables instead.", path: file.path });
+                }
+            }
+        }
+    });
+    
+    // Check 5: YAML Syntax
+    await runCheck('yaml', () => {
+        for (const file of ymlFiles) {
+            try {
+                yaml.loadAll(file.content);
+            } catch (e) {
+                issues.push({ category: "YAML quality", error: "Invalid YAML syntax", why: "File cannot be parsed and will break playbook execution.", path: file.path });
+            }
+        }
+    });
+
+    // Check 6: Non-portable Paths
+    await runCheck('paths', () => {
+        for (const file of ymlFiles) {
+            try {
+                const parsedYamlDocs = yaml.loadAll(file.content);
+                for (const doc of parsedYamlDocs) {
+                    if (!doc) continue;
+                    const checkTasksRecursively = (taskList: any[]) => {
+                        if (!Array.isArray(taskList)) return;
+                        taskList.forEach(task => {
+                            if (!task || typeof task !== 'object') return;
+                            if (task.block) checkTasksRecursively(Array.isArray(task.block) ? task.block : []);
+                            if (task.rescue) checkTasksRecursively(Array.isArray(task.rescue) ? task.rescue : []);
+                            if (task.always) checkTasksRecursively(Array.isArray(task.always) ? task.always : []);
+                            const checkPath = (moduleName: string, pathValue: any) => {
+                                if (typeof pathValue === 'string' && pathValue.startsWith('/') && !pathValue.startsWith('/dev/')) {
+                                    issues.push({ category: "Non-portable paths", error: `Absolute path used in module "${moduleName}"`, why: `Using an absolute source path like '${pathValue}' breaks portability. Use paths relative to the role or playbook.`, path: file.path });
+                                }
+                            };
+                            if (task['ansible.builtin.copy'] && task['ansible.builtin.copy'].src) checkPath('ansible.builtin.copy', task['ansible.builtin.copy'].src);
+                            if (task['ansible.builtin.template'] && task['ansible.builtin.template'].src) checkPath('ansible.builtin.template', task['ansible.builtin.template'].src);
+                            if (task['ansible.builtin.script']) checkPath('ansible.builtin.script', task['ansible.builtin.script']);
+                        });
+                    };
+                    if (Array.isArray(doc)) checkTasksRecursively(doc);
+                    else if (typeof doc === 'object' && doc !== null) {
+                        checkTasksRecursively(doc.tasks || []);
+                        checkTasksRecursively(doc.pre_tasks || []);
+                        checkTasksRecursively(doc.post_tasks || []);
+                        checkTasksRecursively(doc.handlers || []);
+                    }
+                }
+            } catch (e) { /* Already handled by YAML syntax check */ }
+        }
+    });
+
+    // Check 7: Variable Structure
+    await runCheck('vars', () => {
+        if (!filePaths.some(p => p.startsWith('group_vars/')) && !filePaths.some(p => p.startsWith('host_vars/'))) {
+            if (files.length > 10) { // Heuristic for non-trivial projects
+                issues.push({ category: "Variable structure", error: "No use of group_vars/ or host_vars/", why: "Centralizing variables in group_vars/ or host_vars/ improves structure and reusability over playbook-level 'vars'.", path: "Project Root" });
+            }
+        }
+    });
+
+    setCurrentCheck(null);
     setProjectIssues(issues);
-    setIsProjectCheckModalOpen(true);
-  };
+    setIsCheckingProject(false);
+};
 
 
   const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
@@ -1437,11 +1412,36 @@ export function AnsibleArchitectLayout() {
         <Dialog open={isProjectCheckModalOpen} onOpenChange={setIsProjectCheckModalOpen}>
           <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle className="font-headline">Project Check Results</DialogTitle>
+                <DialogTitle className="font-headline">
+                    {isCheckingProject ? 'Checking Project...' : 'Project Check Results'}
+                </DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0">
                 <ScrollArea className="h-full pr-4">
-                    {projectIssues.length > 0 ? (
+                    {isCheckingProject ? (
+                        <div className="p-4 space-y-3">
+                            {projectCheckSteps.map(check => (
+                                <div key={check.id} className="flex items-center gap-3 text-sm transition-all duration-300">
+                                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                                        {completedChecks.includes(check.id) ? (
+                                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                        ) : currentCheck === check.id ? (
+                                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                        ) : (
+                                            <Circle className="w-5 h-5 text-muted-foreground/30" />
+                                        )}
+                                    </div>
+                                    <span className={cn(
+                                        "transition-colors",
+                                        completedChecks.includes(check.id) && "text-muted-foreground",
+                                        currentCheck === check.id && "font-semibold text-primary"
+                                    )}>
+                                        {check.label}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : projectIssues.length > 0 ? (
                         <div className="space-y-4 p-1">
                             {projectIssues.map((issue, index) => (
                                 <Card key={index}>
@@ -1472,7 +1472,9 @@ export function AnsibleArchitectLayout() {
             </div>
             <DialogFooter className="flex-shrink-0 pt-4">
               <DialogClose asChild>
-                <Button variant="outline">Close</Button>
+                <Button variant="outline" disabled={isCheckingProject}>
+                    {isCheckingProject ? 'Checking...' : 'Close'}
+                </Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>
@@ -1579,3 +1581,5 @@ export function AnsibleArchitectLayout() {
     </TooltipProvider>
   );
 }
+
+    
