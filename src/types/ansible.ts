@@ -68,3 +68,10 @@ export interface FileTreeNode {
   children?: FileTreeNode[];
   isDefault?: boolean;
 }
+
+export interface ProjectIssue {
+  category: string;
+  error: string;
+  why: string;
+  path?: string;
+}

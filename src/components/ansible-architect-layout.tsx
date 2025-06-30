@@ -9,9 +9,9 @@ import { TaskList } from "@/components/task-list";
 import { YamlDisplay, type YamlSegment } from "@/components/yaml-display";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save } from "lucide-react";
+import { Download, ExternalLink, Settings, Trash2, PlusCircle, X, FilePlus, Edit2, FileCheck, Eye as EyeIcon, Copy as CopyIconLucide, Archive, UploadCloud, Check, Save, ShieldAlert, AlertTriangle, CheckCircle2 } from "lucide-react";
 import * as yaml from "js-yaml";
-import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile } from "@/types/ansible";
+import type { AnsibleTask, AnsibleModuleDefinition, AnsiblePlaybookYAML, AnsibleRoleRef, DesignerFileState, Project, ProjectFile, ProjectIssue } from "@/types/ansible";
 import { moduleGroups } from "@/config/ansible-modules";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 
 const InventoryStructureVisualizer = dynamic(() => import('@/components/inventory-structure-visualizer').then(mod => mod.InventoryStructureVisualizer), {
@@ -210,6 +211,8 @@ export function AnsibleArchitectLayout() {
   const [editorContent, setEditorContent] = React.useState<string>("");
   const [mainView, setMainView] = React.useState<'designer' | 'editor'>('designer');
   const [itemToConfirmDelete, setItemToConfirmDelete] = React.useState<{ path: string; type: 'file' | 'directory' } | null>(null);
+  const [projectIssues, setProjectIssues] = React.useState<ProjectIssue[]>([]);
+  const [isProjectCheckModalOpen, setIsProjectCheckModalOpen] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -946,6 +949,140 @@ export function AnsibleArchitectLayout() {
   };
 
 
+  const handleCheckProject = () => {
+    if (!project) {
+      toast({ title: "No Project Loaded", description: "Cannot check an empty project.", variant: "destructive" });
+      return;
+    }
+  
+    const issues: ProjectIssue[] = [];
+    const files = project.files;
+    const filePaths = files.map(f => f.path);
+  
+    // 1. Missing ansible.cfg
+    if (!filePaths.includes('ansible.cfg')) {
+      issues.push({
+        category: "Config",
+        error: "Missing ansible.cfg",
+        why: "Falls back to global config, may cause unexpected behaviour.",
+        path: "Project Root",
+      });
+    }
+  
+    // 2. Missing site.yml
+    if (!filePaths.some(p => ['site.yml', 'main.yml', 'playbook.yml'].includes(p))) {
+      issues.push({
+        category: "Playbook Organisation",
+        error: "No site.yml or root-level entrypoint",
+        why: "No clear starting point for execution.",
+        path: "Project Root",
+      });
+    }
+  
+    // 3. & 4. Roles structure check
+    const roles = files.filter(f => f.path.startsWith('roles/'));
+    if (roles.length > 0) {
+      const roleNames = [...new Set(roles.map(r => r.path.split('/')[1]).filter(Boolean))];
+      
+      for (const roleName of roleNames) {
+        const rolePath = `roles/${roleName}/`;
+        if (!filePaths.some(p => p === `${rolePath}tasks/main.yml`)) {
+          issues.push({
+            category: "Roles",
+            error: `Missing tasks/main.yml in role "${roleName}"`,
+            why: "Execution will fail when role is included without a tasks/main.yml.",
+            path: `${rolePath}tasks/`,
+          });
+        }
+      }
+    }
+  
+    // 5, 8, 10. File content checks
+    const secretRegex = new RegExp(`(password|token|secret|api_key|private_key):\\s*['"]?(.+)['"]?`, 'i');
+
+    for (const file of files) {
+      if (file.path.endsWith('.yml') || file.path.endsWith('.yaml')) {
+        let parsedYamlDocs: any[];
+        try {
+          parsedYamlDocs = yaml.loadAll(file.content);
+        } catch (e) {
+          issues.push({
+            category: "YAML quality",
+            error: "Invalid YAML syntax",
+            why: "File cannot be parsed and will break playbook execution.",
+            path: file.path,
+          });
+          continue; // Skip other checks for this file
+        }
+        
+        // 5. Plaintext secrets
+        if (secretRegex.test(file.content)) {
+            issues.push({
+              category: "Secrets",
+              error: "Potential plaintext secret found",
+              why: "Committing secrets in plaintext is a security risk. Use ansible-vault.",
+              path: file.path,
+            });
+        }
+
+        // 10. Absolute paths in copy/template/script
+        for (const doc of parsedYamlDocs) {
+            if (!doc) continue;
+
+            const findTasks = (obj: any): any[] => {
+                if (Array.isArray(obj)) return obj;
+                if (typeof obj === 'object' && obj !== null) {
+                    if (Array.isArray(obj.tasks)) return obj.tasks;
+                    if (Array.isArray(obj.pre_tasks)) return obj.pre_tasks;
+                    if (Array.isArray(obj.post_tasks)) return obj.post_tasks;
+                }
+                return [];
+            };
+
+            const tasks = findTasks(doc);
+            if (tasks.length > 0) {
+              tasks.forEach(task => {
+                if (!task || typeof task !== 'object') return;
+                const moduleKey = Object.keys(task).find(k => k.includes('.copy') || k.includes('.template') || k.includes('.script'));
+                if (moduleKey) {
+                  const params = task[moduleKey];
+                  if (params && typeof params === 'object') {
+                    for (const paramKey of ['src', 'dest', 'cmd']) {
+                      const pathValue = params[paramKey];
+                      if (typeof pathValue === 'string' && pathValue.startsWith('/') && !pathValue.startsWith('/dev/')) {
+                        issues.push({
+                            category: "Non-portable paths",
+                            error: `Absolute path used in module "${moduleKey}"`,
+                            why: "Breaks portability. Use relative paths or variables like '{{ playbook_dir }}'.",
+                            path: file.path,
+                        });
+                      }
+                    }
+                  }
+                }
+              });
+            }
+        }
+      }
+    }
+    
+    // 11. No use of group_vars/ or host_vars/
+    if (!filePaths.some(p => p.startsWith('group_vars/')) && !filePaths.some(p => p.startsWith('host_vars/'))) {
+      if (files.length > 10) { // Heuristic for non-trivial projects
+        issues.push({
+          category: "Variable structure",
+          error: "No use of group_vars/ or host_vars/",
+          why: "Centralizing variables in group_vars/ or host_vars/ improves structure.",
+          path: "Project Root",
+        });
+      }
+    }
+  
+    setProjectIssues(issues);
+    setIsProjectCheckModalOpen(true);
+  };
+
+
   const activeDesignerFileIsDefault = project?.files.find(f => f.path === activeDesignerFile?.id)?.isDefault;
   const activeFilePath = mainView === 'editor' ? activeEditorFile?.path ?? null : activeDesignerFileId;
 
@@ -1193,6 +1330,10 @@ export function AnsibleArchitectLayout() {
                 </Button>
                 
                 <Separator className="my-2"/>
+                <Button onClick={handleCheckProject} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
+                  <ShieldAlert className="w-3.5 h-3.5 mr-1.5" /> Check Project for Errors
+                </Button>
+                <Separator className="my-2"/>
 
                 <Button onClick={handleNewFile} variant="outline" size="sm" className="w-full justify-start text-xs px-2 py-1 whitespace-nowrap">
                   <FilePlus className="w-3.5 h-3.5 mr-1.5" /> New File
@@ -1250,6 +1391,50 @@ export function AnsibleArchitectLayout() {
         </div>
 
         {/* Modals */}
+        <Dialog open={isProjectCheckModalOpen} onOpenChange={setIsProjectCheckModalOpen}>
+          <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="font-headline">Project Check Results</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0">
+                <ScrollArea className="h-full pr-4">
+                    {projectIssues.length > 0 ? (
+                        <div className="space-y-4 p-1">
+                            {projectIssues.map((issue, index) => (
+                                <Card key={index}>
+                                    <CardHeader className="pb-4">
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                                            {issue.error}
+                                        </CardTitle>
+                                        <CardDescription>
+                                            <span className="font-semibold">Category:</span> {issue.category}
+                                            {issue.path && <span className="font-mono bg-muted p-1 rounded-sm ml-2 text-xs">{issue.path}</span>}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm">{issue.why}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                            <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
+                            <h3 className="text-lg font-semibold">No issues found!</h3>
+                            <p>Your project structure looks good based on our checks.</p>
+                        </div>
+                    )}
+                </ScrollArea>
+            </div>
+            <DialogFooter className="flex-shrink-0 pt-4">
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={isManageRolesModalOpen} onOpenChange={setIsManageRolesModalOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
