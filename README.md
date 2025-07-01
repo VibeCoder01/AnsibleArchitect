@@ -6,7 +6,7 @@ Ansible Architect is a Next.js application that helps you design and visualize A
 
 ## Prerequisites
 
-- **Node.js**: version 20 or later
+- **Node.js**: version 20 or later.
 - **npm**: comes bundled with Node.js
 
 ## Installation
